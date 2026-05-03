@@ -87,4 +87,3 @@ func alertID(e *event.Event) string {
 	return fmt.Sprintf("%s:%d", e.Type, e.Time.Unix())
 }
 
-var _ = fmt.Sprintf

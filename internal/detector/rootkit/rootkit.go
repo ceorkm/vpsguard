@@ -4,7 +4,6 @@ package rootkit
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -258,4 +257,3 @@ func absDiff(a, b uint64) uint64 {
 	return b - a
 }
 
-var _ = fmt.Sprintf

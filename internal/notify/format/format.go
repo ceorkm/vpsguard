@@ -8,7 +8,6 @@ package format
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/ceorkm/vpsguard/internal/event"
 	"github.com/ceorkm/vpsguard/internal/notify/telegram"
@@ -433,4 +432,3 @@ func formatGeneric(e *event.Event) string {
 	return join(parts)
 }
 
-var _ = time.Now // keep time import; UTC formatting may evolve

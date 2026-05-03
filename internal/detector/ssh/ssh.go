@@ -94,7 +94,15 @@ func (d *Detector) runStdin(ctx context.Context, out chan<- *event.Event) error 
 			out <- e
 		}
 	}
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	// Stdin reached EOF cleanly. In real production we tail a file
+	// forever; stdin mode is only used for fixtures and pipes. Block
+	// until the agent's context is cancelled so the orchestrator does
+	// not flag a "detector exited unexpectedly" agent.error event.
+	<-ctx.Done()
+	return nil
 }
 
 func (d *Detector) runFile(ctx context.Context, out chan<- *event.Event) error {

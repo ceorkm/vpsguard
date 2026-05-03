@@ -8,7 +8,6 @@ package network
 import (
 	"bufio"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"net/netip"
 	"strconv"
@@ -217,4 +216,3 @@ func deltaTX(prev, cur map[string]uint64) uint64 {
 	return total
 }
 
-var _ = fmt.Sprintf

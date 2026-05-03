@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -97,6 +99,7 @@ func updateCmd(args []string) {
 	repo := fs.String("repo", "ceorkm/vpsguard", "GitHub repo owner/name")
 	version := fs.String("version", "latest", "release version or latest")
 	restart := fs.Bool("restart", true, "restart vpsguard after update")
+	skipVerify := fs.Bool("insecure-skip-verify", false, "skip checksum verification (dangerous)")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -105,24 +108,144 @@ func updateCmd(args []string) {
 	if arch != "amd64" && arch != "arm64" {
 		fatalf("update: unsupported arch %s", arch)
 	}
-	url := fmt.Sprintf("https://github.com/%s/releases/latest/download/vpsguard-linux-%s", *repo, arch)
+
+	binaryName := fmt.Sprintf("vpsguard-linux-%s", arch)
+	releaseBase := fmt.Sprintf("https://github.com/%s/releases/latest/download", *repo)
 	if *version != "latest" {
-		url = fmt.Sprintf("https://github.com/%s/releases/download/%s/vpsguard-linux-%s", *repo, *version, arch)
+		releaseBase = fmt.Sprintf("https://github.com/%s/releases/download/%s", *repo, *version)
 	}
-	tmp := installBinPath + ".update"
-	if err := downloadFile(url, tmp); err != nil {
+	binURL := releaseBase + "/" + binaryName
+	checksumsURL := releaseBase + "/checksums.txt"
+	bundleURL := releaseBase + "/checksums.txt.bundle"
+
+	tmpBin := installBinPath + ".update"
+	if err := downloadFile(binURL, tmpBin); err != nil {
 		fatalf("update: %v", err)
 	}
-	if err := os.Chmod(tmp, 0o755); err != nil {
+
+	if !*skipVerify {
+		// 1. Pull checksums.txt and verify the binary's SHA-256.
+		tmpChecksums := tmpBin + ".sha256"
+		defer os.Remove(tmpChecksums)
+		if err := downloadFile(checksumsURL, tmpChecksums); err != nil {
+			os.Remove(tmpBin)
+			fatalf("update: download checksums.txt: %v", err)
+		}
+		want, err := readChecksum(tmpChecksums, binaryName)
+		if err != nil {
+			os.Remove(tmpBin)
+			fatalf("update: checksums.txt: %v", err)
+		}
+		got, err := fileSHA256(tmpBin)
+		if err != nil {
+			os.Remove(tmpBin)
+			fatalf("update: hash binary: %v", err)
+		}
+		if got != want {
+			os.Remove(tmpBin)
+			fatalf("update: checksum mismatch — refusing to install (want %s, got %s)", want, got)
+		}
+		fmt.Fprintf(os.Stderr, "✓ sha256 verified: %s\n", got)
+
+		// 2. If cosign is on PATH, verify checksums.txt against the
+		//    GitHub Actions OIDC identity that produced the release.
+		//    Without cosign installed we still have the sha256 chain;
+		//    with cosign we add transparency-log verification.
+		if cosignAvailable() {
+			tmpBundle := tmpBin + ".bundle"
+			defer os.Remove(tmpBundle)
+			if err := downloadFile(bundleURL, tmpBundle); err != nil {
+				fmt.Fprintf(os.Stderr, "! cosign bundle download failed: %v (skipping signature verify)\n", err)
+			} else if err := cosignVerifyBlob(tmpBundle, tmpChecksums, *repo); err != nil {
+				os.Remove(tmpBin)
+				fatalf("update: cosign verify failed: %v", err)
+			} else {
+				fmt.Fprintln(os.Stderr, "✓ cosign signature verified")
+			}
+		} else {
+			fmt.Fprintln(os.Stderr, "! cosign not installed — sha256 only (install cosign for full chain-of-custody verification)")
+		}
+	} else {
+		fmt.Fprintln(os.Stderr, "!! --insecure-skip-verify set — installing unverified binary")
+	}
+
+	if err := os.Chmod(tmpBin, 0o755); err != nil {
 		fatalf("update: chmod: %v", err)
 	}
-	if err := os.Rename(tmp, installBinPath); err != nil {
+	if err := os.Rename(tmpBin, installBinPath); err != nil {
 		fatalf("update: replace binary: %v", err)
 	}
 	if *restart {
 		_ = runQuiet("systemctl", "restart", "vpsguard")
 	}
-	fmt.Fprintf(os.Stderr, "vpsguard updated from %s\n", url)
+	fmt.Fprintf(os.Stderr, "vpsguard updated from %s\n", binURL)
+}
+
+// readChecksum reads a `sha256sum`-style checksums file and returns the
+// hex digest matching the named filename. Skips lines that don't look
+// right and ignores leading "*" or "./" path prefixes that some tools
+// emit.
+func readChecksum(path, fileName string) (string, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(body), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		name := strings.TrimLeft(fields[1], "*./")
+		if name == fileName {
+			return strings.ToLower(fields[0]), nil
+		}
+	}
+	return "", fmt.Errorf("no entry for %q in checksums.txt", fileName)
+}
+
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func cosignAvailable() bool {
+	_, err := exec.LookPath("cosign")
+	return err == nil
+}
+
+// cosignVerifyBlob runs `cosign verify-blob` against the GitHub Actions
+// OIDC identity for the configured repo. Refuses anything not signed
+// by a workflow inside the repo's GitHub Actions environment.
+func cosignVerifyBlob(bundlePath, blobPath, repo string) error {
+	identityRegex := fmt.Sprintf(`^https://github.com/%s/`, regexEscape(repo))
+	cmd := exec.Command("cosign", "verify-blob",
+		"--bundle", bundlePath,
+		"--certificate-identity-regexp", identityRegex,
+		"--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
+		blobPath,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// regexEscape is a tiny helper that escapes the `/` and `.` characters
+// in a github.com/<owner>/<repo> string for use inside a regex literal.
+// We avoid importing the full regexp package here because we only need
+// to escape two characters.
+func regexEscape(s string) string {
+	r := strings.NewReplacer(".", `\.`, "+", `\+`, "?", `\?`, "(", `\(`, ")", `\)`, "[", `\[`, "]", `\]`)
+	return r.Replace(s)
 }
 
 func downloadFile(url, dst string) error {

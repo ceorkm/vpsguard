@@ -2,14 +2,6 @@ package process
 
 import "strings"
 
-// Suspicious exec-path prefixes (Falco / Wazuh consensus).
-var suspiciousPrefixes = []string{
-	"/tmp/",
-	"/var/tmp/",
-	"/dev/shm/",
-	"/run/lock/",
-}
-
 // Known coin-miner process names (Falco coin_miners list).
 var minerNames = map[string]struct{}{
 	"xmrig":          {},

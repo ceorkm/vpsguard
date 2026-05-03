@@ -2,7 +2,6 @@ package heartbeat
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -75,4 +74,3 @@ func (p *Pinger) ping(ctx context.Context, url string) {
 	}
 }
 
-var _ = fmt.Sprintf

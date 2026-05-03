@@ -15,7 +15,14 @@ import (
 	"github.com/ceorkm/vpsguard/internal/event"
 )
 
-const scanInterval = 10 * time.Second
+// Suspicious exec-path prefixes (Falco / Wazuh consensus). Defined in
+// the linux file because they're only consulted by the /proc walker.
+var suspiciousPrefixes = []string{
+	"/tmp/",
+	"/var/tmp/",
+	"/dev/shm/",
+	"/run/lock/",
+}
 
 type pidState struct {
 	staticAlerted  bool
