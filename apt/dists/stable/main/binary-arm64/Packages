@@ -14,3 +14,19 @@ Homepage: https://github.com/ceorkm/vpsguard
 Description: VPS security alerting agent
 License: MIT
 
+Package: vpsguard
+Version: 0.4.0
+Architecture: arm64
+Maintainer: ceorkm
+Installed-Size: 6659
+Filename: pool/main/vpsguard_0.4.0_arm64.deb
+Size: 2841170
+MD5sum: 37335b61b84b06aa2f6dbb921e655543
+SHA1: 39b9c3a2274ffaa5d965cec5c0890ddd5611423f
+SHA256: 87bb16da3a1def96c1a7c2ceaebab34b8ff30cea9169c100d59cd24c927e9090
+Section: default
+Priority: optional
+Homepage: https://github.com/ceorkm/vpsguard
+Description: VPS security alerting agent
+License: MIT
+
