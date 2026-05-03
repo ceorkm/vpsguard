@@ -1,7 +1,12 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>vpsguard</title></head>
-<body style="font-family:system-ui;max-width:720px;margin:2rem auto;padding:0 1rem">
-<h1>vpsguard</h1>
-<p>The apt repository will appear here on the first tagged release. Until then, see
-<a href="https://github.com/ceorkm/vpsguard">github.com/ceorkm/vpsguard</a>.</p>
+<html><head><meta charset="utf-8"><title>vpsguard apt repository</title></head>
+<body style="font-family:system-ui;max-width:720px;margin:2rem auto;padding:0 1rem;line-height:1.5">
+<h1>vpsguard apt repository</h1>
+<p>Install the agent on Debian or Ubuntu:</p>
+<pre><code>curl -fsSL https://ceorkm.github.io/vpsguard/apt/vpsguard.asc | sudo tee /etc/apt/keyrings/vpsguard.asc &gt; /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/vpsguard.asc] https://ceorkm.github.io/vpsguard/apt stable main" | sudo tee /etc/apt/sources.list.d/vpsguard.list
+sudo apt update
+sudo apt install vpsguard
+sudo vpsguard configure</code></pre>
+<p>Source: <a href="https://github.com/ceorkm/vpsguard">github.com/ceorkm/vpsguard</a></p>
 </body></html>

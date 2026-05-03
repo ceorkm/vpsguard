@@ -1,0 +1,16 @@
+Package: vpsguard
+Version: 0.3.0
+Architecture: amd64
+Maintainer: ceorkm
+Installed-Size: 7075
+Filename: pool/main/vpsguard_0.3.0_amd64.deb
+Size: 3086898
+MD5sum: 106a9c5333d75b4eb35fbae1271efdad
+SHA1: c18f55332dee54e0a33b79c88611661039fc6484
+SHA256: adf8cae25c0a6831eaf3980572789e86b86e70198bd3cf676891de24e6cdfd31
+Section: default
+Priority: optional
+Homepage: https://github.com/ceorkm/vpsguard
+Description: VPS security alerting agent
+License: MIT
+

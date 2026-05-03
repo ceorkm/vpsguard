@@ -1,0 +1,33 @@
+Origin: vpsguard
+Label: vpsguard
+Suite: stable
+Codename: stable
+Architectures: amd64 arm64
+Components: main
+Description: vpsguard official apt repository
+Date: Sun, 03 May 2026 12:27:02 +0000
+Date: Sun, 03 May 2026 12:27:02 +0000
+MD5Sum:
+ ac2e56698c96afad876f4ba9a0141a46              230 Release
+ 7ed2d1357ab42ccf468af5180763058c              449 main/binary-amd64/Packages
+ de1de56b172c0bdeeb316544f28bad3c              350 main/binary-amd64/Packages.gz
+ a5b85ae6b24ed3f7c306fe86f927e805              449 main/binary-arm64/Packages
+ 3cb22bcae378464e2b92475c921f90fc              350 main/binary-arm64/Packages.gz
+SHA1:
+ f91b11eabaf70777a985bd7467b54205c8a03e33              230 Release
+ bbe805b78db6442386d61c4cc9ee44c747d8f21b              449 main/binary-amd64/Packages
+ fa363a71938182e25985ffd708762e82ce15b196              350 main/binary-amd64/Packages.gz
+ 01361d5fd98600a4c55b3b96a4aa58d1a7fd2b5e              449 main/binary-arm64/Packages
+ 19763272b8056af6b2cc9365b8740f316ffe6178              350 main/binary-arm64/Packages.gz
+SHA256:
+ 1f61878773445259db1839f645d6607bb21818ef06ce843497fae459e28ce0d5              230 Release
+ 2d85b69472411943b724b4efcace5226aca5a6da84987efec5662b9a5b3fabeb              449 main/binary-amd64/Packages
+ 781c71337237988521f7e04c2e273cd79b5c4098b4b34b7f8ee62950666c57a4              350 main/binary-amd64/Packages.gz
+ 48acb7f2f39ba28d235a3a48c5d0240ee3d3654b351446607889c3a88a91cbc2              449 main/binary-arm64/Packages
+ 708a9f1b1baf5280331ea8e20771646eb3421f55f950f474d206a5169efe0cbc              350 main/binary-arm64/Packages.gz
+SHA512:
+ ac936b4c4c1e18679b2842965b9c9b77c55e51ec65a027bbb8753858ffa1857b20c786e133f2692bca0892bf2e38c86f31d9f218882955d83d71b07c39682573              230 Release
+ 2e09f1ccc8d4e462bba197f8a39e40faba0e1e973688702a9ed929ac89aa706f9a3052b2ef76299fd0fe1acb8478fe384a9092b294d53f00164d92affad333eb              449 main/binary-amd64/Packages
+ 9ed109bdb145654115cfe1d1207bd86515f5d3228ee1396862b0525f7a43c8e240bb161dc886e8639a2fefed4b331afd1b6eb75ddf5f2cacdec2218a63b80408              350 main/binary-amd64/Packages.gz
+ 3817977b58a93ef6e42aca1086ffa9ed9faf813234a124fad343557415ff4f4eb0c772b14d1805bf947daaf6149e6be79d9fe8eac314a94e397d84cd84f13007              449 main/binary-arm64/Packages
+ 72f91698511a4d16c6ab254904f176a2267fea909d5a0d39a86249e6f3ac0cd5d207f55e12d4058707b20f4948b3b027d4bda3df8e86102a857d86fa8ca34fc0              350 main/binary-arm64/Packages.gz
