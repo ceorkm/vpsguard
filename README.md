@@ -1,113 +1,233 @@
+<div align="center">
+
 # vpsguard
 
-> Know the moment your VPS gets hacked.
+**Know the moment your VPS gets hacked.**
 
-vpsguard is a single-binary Linux agent that detects suspicious activity on your VPS and (in v0.2+) sends instant Telegram alerts.
+A single-binary Linux agent that watches your server and pings you on Telegram the second something looks wrong.
 
-It watches for: SSH brute-force, new SSH logins, crypto miners, CPU spikes, suspicious processes, new cron jobs, new SSH keys, new users, sudoer changes, systemd changes, and agent tampering.
+[![ci](https://github.com/ceorkm/vpsguard/actions/workflows/ci.yml/badge.svg)](https://github.com/ceorkm/vpsguard/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/ceorkm/vpsguard?include_prereleases&sort=semver)](https://github.com/ceorkm/vpsguard/releases)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**Open source. VPS-only. No dashboard required. No hosted backend. Free. MIT licensed.**
+</div>
 
-## Status
+---
 
-Pre-alpha — `v0.1` (local prototype, JSONL stdout). See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's coming.
+## Install
+
+### Debian / Ubuntu (recommended)
+
+```bash
+curl -fsSL https://ceorkm.github.io/vpsguard/apt/vpsguard.asc \
+  | sudo tee /etc/apt/keyrings/vpsguard.asc > /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/vpsguard.asc] https://ceorkm.github.io/vpsguard/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/vpsguard.list
+sudo apt update
+sudo apt install vpsguard
+```
+
+The package's post-install hook walks you through Telegram setup automatically.
+If you skipped it (or installed unattended), run:
+
+```bash
+sudo vpsguard configure
+```
+
+### RHEL / Rocky / Alma / Fedora
+
+Grab the latest `.rpm` from the [releases page](https://github.com/ceorkm/vpsguard/releases/latest):
+
+```bash
+sudo dnf install https://github.com/ceorkm/vpsguard/releases/latest/download/vpsguard_VERSION_amd64.rpm
+sudo vpsguard configure
+```
+
+### Universal (any Linux, any distro)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ceorkm/vpsguard/main/packaging/install.sh | sudo bash
+sudo vpsguard configure
+```
+
+---
+
+## What `configure` does
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  vpsguard setup — let's get your Telegram alerts wired up.  │
+└──────────────────────────────────────────────────────────────┘
+
+If you don't have a bot yet, do this in another tab first:
+  1. Open Telegram, message @BotFather, send /newbot.
+  2. Pick a name + username. BotFather replies with a token like
+     123456789:AAH...xyz — paste that below when asked.
+  3. Open your new bot and send it /start.
+  4. Message @userinfobot to get your numeric chat_id.
+
+Server label (shows on every alert) [main-vps]:
+Telegram bot token: 123456789:AAHrealtoken...
+Telegram chat_id (numeric): 987654321
+healthchecks.io URL (optional, press Enter to skip):
+Minimum severity for Telegram (info|low|medium|high|critical) [medium]:
+
+Wrote config: /etc/vpsguard/config.yml (mode 0600)
+Sending test alert to your Telegram chat...
+✓ Test alert delivered. Open Telegram to confirm you received it.
+```
+
+---
+
+## What you'll see on Telegram
+
+```
+🚨 New SSH login
+Server: main-vps
+User: root
+IP: 185.220.101.45
+Method: publickey
+This IP has never logged into this server before.
+Time: 2026-05-03 21:14 UTC
+
+[Acknowledge] [False positive]
+```
+
+```
+🚨 SSH brute-force attack detected
+Server: main-vps
+IP: 45.227.255.215
+Failed attempts: 72
+Distinct users: 8
+Window: 5m0s
+Time: 2026-05-03 21:18 UTC
+```
+
+```
+🚨 Possible crypto miner detected
+Server: main-vps
+Process: /var/tmp/xmrig
+Cmdline: /var/tmp/xmrig --donate-level 1
+PID: 8421
+Reason: process name matches a known crypto-miner pattern
+Time: 2026-05-03 21:22 UTC
+```
+
+---
+
+## What it watches
+
+| Detector | Catches |
+|----------|---------|
+| `ssh` | SSH brute-force, invalid users, success-after-failures, first-seen IP logins, root + password logins |
+| `process` | Binaries running from `/tmp`, `/var/tmp`, `/dev/shm`; crypto-miner names (xmrig, kinsing, kdevtmpfsi…); shells spawned by web servers; reverse-shell command lines; deleted-binary processes; sustained high-CPU processes |
+| `cpu` | Sustained ≥ 90% CPU for 5 minutes (configurable) |
+| `filewatch` | Cron files, sudoers, `/etc/passwd`, every user's `~/.ssh/authorized_keys`, systemd units, `/etc/ld.so.preload`, shell init files |
+| `network` | Outbound SSH/SMTP/RDP spikes (this VPS attacking other servers), mining-pool ports, cloud-metadata access, known-bad IP contacts, bulk transfer |
+| `dns` | DNS tunneling, queries to known-bad domains |
+| `audit` | Setuid execve, kernel-module loads, sensitive-file reads (via auditd) |
+| `rootkit` | Hidden PIDs (`kill(0)` vs `/proc`), hidden ports (`bind()` vs `ss`), hidden `/dev` files |
+| `fim` | SHA256 baseline + diff for sensitive paths |
+| `ransomware` | Mass-rename to ransom extensions, ransom-note creation in `/home` |
+| `logpattern` | Postfix/Dovecot/nginx/Apache/HestiaCP brute-force |
+| `selfhash` | vpsguard binary modified or replaced on disk |
+| `heartbeat` | Agent silence (paired with healthchecks.io) catches an attacker who kills the agent |
+
+Correlation across detectors: events from the same source within 10 min get a stable `incident_id` so Telegram messages stay coherent instead of flooding.
+
+---
+
+## Day-to-day commands
+
+```bash
+sudo vpsguard configure       # interactive Telegram setup
+sudo vpsguard test-alert      # send a synthetic alert to your chat
+sudo vpsguard test-event      # emit synthetic detector events to stdout
+sudo vpsguard status          # systemd unit status
+sudo vpsguard logs --follow   # live event stream
+sudo vpsguard update          # download + replace binary from latest release
+sudo vpsguard uninstall       # remove agent + service (keeps config with --keep-config)
+```
+
+---
+
+## How it stays alive after an attacker kills it
+
+vpsguard ships every event to Telegram **immediately** — by the time an attacker reads the bot token off disk, the alert is already on your phone. After that, three layers detect tampering:
+
+- **Heartbeat** every 30 s. Pair with the [healthchecks.io](https://healthchecks.io) free tier and your phone buzzes if the agent goes silent for more than a few minutes.
+- **Self-hash** of the running binary. If the file on disk changes, you get an `agent.binary_modified` alert before the next restart.
+- **Watchdog systemd unit** restarts the agent if it crashes.
+
+The bot token is just a Telegram webhook — it can't spend money, pivot to other servers, or unlock anything. Worst case an attacker reads it: rotate via `@BotFather` in 30 seconds.
+
+---
+
+## Configuration
+
+Default config lives at `/etc/vpsguard/config.yml` (mode 0600, root-only). The full schema:
+
+```yaml
+server_name: main-vps
+healthcheck_url: https://hc-ping.com/your-uuid
+min_severity: medium                      # info | low | medium | high | critical
+
+telegram:
+  bot_token: "123456789:AAH..."
+  chat_id:   "987654321"
+
+trusted_ips:                              # successful logins from these are downgraded
+  - 203.0.113.10
+  - 198.51.100.0/24
+
+known_bad_ips:                            # alert (don't block) on contact
+  - 203.0.113.66
+known_bad_domains:
+  - malware.example
+
+cpu:
+  threshold: 90
+  sustain_seconds: 300
+```
+
+---
+
+## Roadmap
+
+[`docs/ROADMAP.md`](docs/ROADMAP.md) tracks every detection technique mapped to its MITRE ATT&CK ID and target version. The matrix covers persistence, privilege escalation, defense evasion, credential access, discovery, lateral movement, exfiltration, and impact.
+
+---
 
 ## Build from source
 
-Requires Go 1.24+.
+Requires Go 1.24+:
 
 ```bash
 git clone https://github.com/ceorkm/vpsguard.git
 cd vpsguard
+go test -race ./...
 go build -o vpsguard ./cmd/vpsguard
 ```
 
-Cross-compile for a Linux VPS from any host:
+Cross-compile for any Linux VPS from any host:
 
 ```bash
 GOOS=linux GOARCH=amd64 go build -o vpsguard-linux-amd64 ./cmd/vpsguard
+GOOS=linux GOARCH=arm64 go build -o vpsguard-linux-arm64 ./cmd/vpsguard
 ```
 
-## Run
+---
 
-```bash
-sudo ./vpsguard run
-```
+## Documentation
 
-The agent watches `/var/log/auth.log` and emits JSONL events to stdout. One line per event.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — MITRE ATT&CK coverage matrix + phased plan
+- [`docs/VERIFY.md`](docs/VERIFY.md) — manual verification procedure on a real Linux box
+- [`docs/PRIVACY.md`](docs/PRIVACY.md) — what the agent reads, sends, and stores
+- [`docs/RELEASING.md`](docs/RELEASING.md) — how to cut a release
+- [`docs/reference-analysis.md`](docs/reference-analysis.md) — what we borrowed from Wazuh, CrowdSec, Fail2Ban, Falco, Tetragon, auditd
 
-### CLI flags
-
-```
-vpsguard run [flags]
-vpsguard install
-vpsguard uninstall
-vpsguard status
-vpsguard logs --follow
-vpsguard test-alert
-vpsguard test-event --type all
-
-  --auth-log <path>    SSH auth log to tail (default /var/log/auth.log; '-' reads stdin)
-  --server <name>      label attached to every event (default: hostname)
-  --no-ssh             disable SSH log detector
-  --no-process         disable /proc walker
-  --no-cpu             disable CPU spike detector
-  --no-filewatch       disable filesystem watcher
-  --no-heartbeat       disable heartbeat events
-  --no-network         disable outbound abuse detector
-  --no-selfhash        disable agent binary tamper detector
-  --no-telegram        disable Telegram delivery
-```
-
-### Example output
-
-```json
-{"type":"agent.started","severity":"info","time":"2026-05-02T21:14:00Z","server":"main-vps","source":"heartbeat","title":"vpsguard agent started"}
-{"type":"ssh.login.failed","severity":"low","time":"2026-05-02T21:14:01Z","server":"main-vps","source":"ssh","title":"SSH login failed","fields":{"ip":"185.220.101.45","user":"root"}}
-{"type":"ssh.login.success","severity":"medium","time":"2026-05-02T21:14:30Z","server":"main-vps","source":"ssh","title":"SSH login (publickey)","fields":{"ip":"102.89.34.12","user":"root"}}
-{"type":"process.known_miner","severity":"high","time":"2026-05-02T21:24:00Z","server":"main-vps","source":"process","title":"Possible crypto miner running","fields":{"cmdline":"/var/tmp/xmrig --donate-level 1","exe":"/var/tmp/xmrig","pid":8421}}
-{"type":"cron.modified","severity":"high","time":"2026-05-02T21:25:14Z","server":"main-vps","source":"filewatch","title":"Cron drop-in directory changed","fields":{"op":"CREATE","path":"/etc/cron.d/update"}}
-{"type":"outbound.rdp_spike","severity":"high","time":"2026-05-02T21:25:20Z","server":"main-vps","source":"network","title":"Possible outbound RDP brute-force from this server","fields":{"port":3389,"unique_dst_ips":25,"window":"10m0s"}}
-{"type":"agent.heartbeat","severity":"info","time":"2026-05-02T21:25:30Z","server":"main-vps","source":"heartbeat","title":"agent heartbeat","fields":{"interval_seconds":30}}
-```
-
-## What each detector watches
-
-| Detector | What it does |
-|----------|--------------|
-| `ssh` | Tails auth.log, regex-matches Failed/Accepted/Invalid-user/max-auth events |
-| `process` | Walks `/proc` every 10s. Flags execs in `/tmp`, `/var/tmp`, `/dev/shm`, `/run/lock`. Matches process names + cmdlines against known crypto-miner list (xmrig, kinsing, kdevtmpfsi, t-rex, ...). Flags deleted binaries and sustained high-CPU processes |
-| `cpu` | Reads `/proc/stat` every 5s. Fires `cpu.spike` when sustained ≥90% CPU for 5min (configurable in v0.2+) |
-| `filewatch` | inotify on cron paths, sudoers, /etc/passwd, root authorized_keys, systemd unit dir, /etc/ld.so.preload, /etc/profile, /etc/bash.bashrc |
-| `network` | Polls `/proc/net/tcp{,6}` for outbound SSH/SMTP/RDP spikes and mining-pool ports |
-| `selfhash` | Hashes the running agent binary and emits `agent.binary_modified` if it changes after startup |
-| `heartbeat` | Emits `agent.started` on launch, `agent.heartbeat` every 30s, `agent.stopped` on shutdown — feeds healthchecks.io-style silence detection in v0.2+ |
-
-## Event taxonomy
-
-See `internal/event/event.go` for the full constant list. The wire format is locked by `internal/event/event_test.go`; any breaking change requires updating the test deliberately.
-
-## Troubleshooting
-
-**No events.** Check that `/var/log/auth.log` exists (RHEL/CentOS uses `/var/log/secure` — pass `--auth-log /var/log/secure`). The agent will emit an `agent.error` event if the path is wrong. Run as root — `/proc` walks and `/var/log/auth.log` need privileges.
-
-**inotify watcher fails on a busy server.** Bump the kernel limit:
-
-```bash
-echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
-sudo sysctl -p
-```
-
-**No process detector events on macOS.** Expected — `process` and `cpu` detectors are Linux-only and stub out cleanly on darwin so the project builds on dev machines.
-
-## Reference repos
-
-`docs/reference-analysis.md` summarizes what vpsguard borrows (and doesn't) from Wazuh, CrowdSec, Fail2Ban, Falco, Tetragon, and the Linux audit framework. The clones live in `references/` (gitignored).
-
-## Roadmap
-
-[`docs/ROADMAP.md`](docs/ROADMAP.md) — full MITRE ATT&CK coverage matrix and phased plan up to v3.
+---
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). No telemetry. No hosted backend. No paid tier. Built for the culture.

@@ -65,7 +65,9 @@ jobs:
             apt-get update
             apt-get install -y ca-certificates curl tar gzip
           elif command -v dnf >/dev/null; then
-            dnf install -y ca-certificates curl tar gzip
+            # Rocky/Alma ship curl-minimal; --allowerasing lets dnf swap it
+            # for the full curl without the conflict that breaks the job.
+            dnf install -y --allowerasing ca-certificates curl tar gzip
           fi
       - uses: actions/setup-go@v5
         with:

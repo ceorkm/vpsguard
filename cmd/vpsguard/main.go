@@ -59,6 +59,8 @@ func main() {
 	switch os.Args[1] {
 	case "run":
 		runCmd(os.Args[2:])
+	case "configure":
+		configureCmd(os.Args[2:])
 	case "test-alert":
 		testAlertCmd(os.Args[2:])
 	case "test-event":
@@ -89,6 +91,7 @@ func usage() {
 
 Usage:
   vpsguard run [flags]          start the agent
+  vpsguard configure [flags]    interactive Telegram setup (writes config.yml)
   vpsguard test-alert [flags]   send a test alert to Telegram
   vpsguard test-event [flags]   emit synthetic detector events
   vpsguard install [flags]      install this binary as a systemd service

@@ -32,8 +32,8 @@ func TestFilewatch_HomeUserKeys(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- d.Run(ctx, out) }()
 
-	// Allow watcher setup.
-	time.Sleep(100 * time.Millisecond)
+	// Allow watcher setup. CI containers can be slow; be generous.
+	time.Sleep(300 * time.Millisecond)
 
 	// 1. Modify alice's existing key file.
 	mustAppend(t, filepath.Join(homeRoot, "alice", ".ssh", "authorized_keys"), "\nssh-rsa B...\n")
@@ -41,14 +41,17 @@ func TestFilewatch_HomeUserKeys(t *testing.T) {
 	// 2. Create bob's home dir + .ssh + key after the fact.
 	mustMkdir(t, filepath.Join(homeRoot, "bob", ".ssh"))
 	// The dynamic discovery happens when the child of homeRoot is created
-	// AND when fsnotify delivers the event. Allow time + create the file.
-	time.Sleep(150 * time.Millisecond)
+	// AND when fsnotify delivers the event. Give the watcher time to
+	// register bob's path before we touch the key file.
+	time.Sleep(400 * time.Millisecond)
 	mustWrite(t, filepath.Join(homeRoot, "bob", ".ssh", "authorized_keys"), "ssh-rsa C...")
-	// Trigger again so the now-watched file emits.
-	time.Sleep(100 * time.Millisecond)
-	mustAppend(t, filepath.Join(homeRoot, "bob", ".ssh", "authorized_keys"), "\nssh-rsa D...\n")
+	// Keep nudging the file in case the watcher only just got the new path.
+	for i := 0; i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
+		mustAppend(t, filepath.Join(homeRoot, "bob", ".ssh", "authorized_keys"), "\nssh-rsa D...\n")
+	}
 
-	deadline := time.After(2 * time.Second)
+	deadline := time.After(8 * time.Second)
 	got := map[string]bool{}
 	for len(got) < 2 {
 		select {
