@@ -1,0 +1,8 @@
+Jun 21 16:47:48 ubuntu-vps sshd[13709]: Failed password for root from 192.0.2.6 port 55322 ssh2
+Feb 25 14:34:10 belka sshd[31602]: Failed password for invalid user ROOT from 194.117.26.69 port 50273 ssh2
+Jul 20 14:42:11 localhost sshd[22708]: Invalid user ftp from 192.0.2.1
+Jul 20 14:42:12 localhost sshd[22708]: Invalid user ftp from 192.0.2.2 port 37220
+May  2 21:14:30 main-vps sshd[1238]: Accepted password for ubuntu from 102.89.34.12 port 51123 ssh2
+May  2 21:14:45 main-vps sshd[1239]: Accepted publickey for root from 102.89.34.12 port 51124 ssh2
+May  2 21:14:50 main-vps sshd[1240]: error: maximum authentication attempts exceeded for invalid user test from 45.227.255.215 port 41234 ssh2 [preauth]
+Jan  5 01:31:41 www sshd[1643]: Failed publickey for root from 1.2.3.4 port 22 ssh2

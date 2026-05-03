@@ -1,0 +1,25 @@
+name: vpsguard
+arch: ${GOARCH}
+platform: linux
+version: ${VERSION}
+section: default
+priority: optional
+maintainer: ceorkm
+description: VPS security alerting agent
+license: MIT
+homepage: https://github.com/ceorkm/vpsguard
+contents:
+  - src: ./dist/vpsguard-linux-${GOARCH}
+    dst: /usr/local/bin/vpsguard
+    file_info:
+      mode: 0755
+  - src: ./packaging/config.example.yml
+    dst: /etc/vpsguard/config.yml
+    type: config|noreplace
+    file_info:
+      mode: 0600
+  - src: ./packaging/systemd/vpsguard.service
+    dst: /etc/systemd/system/vpsguard.service
+scripts:
+  postinstall: ./packaging/scripts/postinstall.sh
+  preremove: ./packaging/scripts/preremove.sh

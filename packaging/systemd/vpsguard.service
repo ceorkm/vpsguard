@@ -1,0 +1,45 @@
+[Unit]
+Description=vpsguard — VPS security agent
+Documentation=https://github.com/ceorkm/vpsguard
+After=network-online.target auditd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/vpsguard run
+Restart=always
+RestartSec=5
+
+# Logging — JSON events go to journald.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vpsguard
+
+# Security hardening — strict but compatible with the agent's needs.
+# vpsguard reads /var/log/auth.log, walks /proc, and watches /etc.
+# It does NOT need write access to anything outside its own state dir.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/vpsguard
+PrivateTmp=true
+PrivateDevices=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+SystemCallArchitectures=native
+
+# Resource limits — vpsguard is lightweight; cap to prevent runaway.
+LimitNOFILE=65536
+MemoryMax=256M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

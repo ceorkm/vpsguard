@@ -1,0 +1,51 @@
+# vpsguard config — /etc/vpsguard/config.yml
+#
+# After editing, validate with:   vpsguard test-alert
+# Then start the service:         systemctl enable --now vpsguard
+
+# Server label that appears at the top of every Telegram alert.
+# Defaults to the system hostname if omitted.
+server_name: my-vps
+
+# SSH auth log to tail. Auto-detected by default:
+#   /var/log/auth.log   (Debian / Ubuntu)
+#   /var/log/secure     (RHEL / CentOS / Alma / Rocky / Fedora)
+# auth_log: /var/log/auth.log
+
+# Healthchecks.io URL. vpsguard pings this every 60s. If pings stop,
+# healthchecks.io alerts you that the agent (or the whole VPS) went down.
+# Free tier: https://healthchecks.io
+# healthcheck_url: https://hc-ping.com/YOUR-UUID
+
+# Minimum severity that triggers a Telegram message.
+# All events still go to stdout/journald regardless of this filter.
+# One of: info | low | medium | high | critical
+min_severity: medium
+
+# Telegram bot configuration.
+# 1. Create a bot:    message @BotFather, send /newbot, follow prompts
+# 2. Get bot_token:   @BotFather sends it on bot creation
+# 3. Get chat_id:     message @userinfobot, it replies with your numeric id
+# 4. Send /start to YOUR new bot first (otherwise it cannot DM you)
+telegram:
+  bot_token: "REPLACE_WITH_BOT_TOKEN"
+  chat_id:   "REPLACE_WITH_CHAT_ID"
+
+# Trusted SSH source IPs or CIDRs. Successful logins from these addresses
+# are downgraded to low severity.
+# trusted_ips:
+#   - 203.0.113.10
+#   - 198.51.100.0/24
+
+# Local threat feeds. vpsguard only alerts on these; it does not block.
+# known_bad_ips:
+#   - 203.0.113.66
+#   - 2001:db8:bad::/48
+# known_bad_domains:
+#   - malware.example
+#   - c2.example.net
+
+# CPU spike detection thresholds.
+cpu:
+  threshold: 90        # percent (0-100)
+  sustain_seconds: 300 # alert when CPU stays >= threshold for this long

@@ -1,0 +1,8 @@
+May  2 21:14:01 main-vps sshd[1234]: Failed password for root from 185.220.101.45 port 55322 ssh2
+May  2 21:14:05 main-vps sshd[1235]: Invalid user admin from 45.227.255.215 port 41234
+May  2 21:14:08 main-vps sshd[1236]: Failed password for invalid user admin from 45.227.255.215 port 41234 ssh2
+May  2 21:14:12 main-vps sshd[1237]: Failed password for invalid user oracle from 45.227.255.215 port 41234 ssh2
+May  2 21:14:30 main-vps sshd[1238]: Accepted password for ubuntu from 102.89.34.12 port 51123 ssh2
+May  2 21:14:45 main-vps sshd[1239]: Accepted publickey for root from 102.89.34.12 port 51124 ssh2
+May  2 21:14:50 main-vps sshd[1240]: error: maximum authentication attempts exceeded for invalid user test from 45.227.255.215 port 41234 ssh2 [preauth]
+May  2 21:15:02 main-vps systemd[1]: session-42.scope: Succeeded.

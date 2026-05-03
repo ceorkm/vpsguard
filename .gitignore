@@ -1,0 +1,86 @@
+# --- Build artifacts ---
+/vpsguard
+/vpsguard-*
+/build/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# --- Go ---
+*.test
+*.out
+*.prof
+coverage.txt
+coverage.html
+cover.out
+/vendor/
+go.work
+go.work.sum
+
+# --- Reference clones (kept locally for development, never published) ---
+/references/
+
+# --- Local config / secrets ---
+# Never commit a real config: the example lives at packaging/config.example.yml.
+config.yml
+config.yaml
+*.local.yml
+*.local.yaml
+.env
+.env.*
+*.token
+*.token.*
+*.secret
+*.pem
+*.key
+*.crt
+known_ips.json
+fim.db
+
+# --- Editors / IDEs ---
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*.swn
+*~
+.netrwhist
+.project
+.classpath
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# --- Linux ---
+.directory
+.Trash-*
+
+# --- Windows ---
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Logs / runtime state ---
+*.log
+*.pid
+*.lock
+/tmp/
+/var/
+# Test fixtures need their .log files preserved.
+!testdata/**
+
+# --- Local dev artifacts ---
+/.claude/
+*.bak
+*.orig
+*.rej
+*.patch.local
+
+# --- Original PRD draft (kept for posterity locally; not user-facing) ---
+/prd
