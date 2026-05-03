@@ -31,8 +31,17 @@ func TestIsSensitivePath(t *testing.T) {
 		{"/home/femi/.config/gh/hosts.yml", true},
 		{"/home/femi/.bash_history", true},
 
+		// SSH agent sockets / k8s tokens
+		{"/tmp/ssh-XXXX1234/agent.5678", true},
+		{"/run/user/1000/keyring/ssh", true},
+		{"/run/user/1000/gnupg/S.gpg-agent.ssh", true},
+		{"/var/run/secrets/kubernetes.io/serviceaccount/token", true},
+		{"/var/run/secrets/kubernetes.io/serviceaccount/ca.crt", true},
+
 		{"/etc/hosts", false},
 		{"/etc/passwd", false},
+		{"/tmp/ssh-XXXX1234/random.txt", false}, // dir prefix only, no agent.
+		{"/run/user/1000/pulse/native", false},  // unrelated user runtime file
 		{"/home/femi/notes.txt", false},
 		{"/var/log/auth.log", false},
 		{"/usr/bin/sshd", false},

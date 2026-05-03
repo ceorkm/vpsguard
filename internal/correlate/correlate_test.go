@@ -316,6 +316,101 @@ func TestIncidentGrouping_NewWindowGetsNewID(t *testing.T) {
 	}
 }
 
+func suspiciousProcessEvent(exe string) *event.Event {
+	return event.New(event.TypeProcessSuspicious, event.SevHigh,
+		"Suspicious process running from temporary path").
+		WithSource("process").
+		WithField("exe", exe).
+		WithField("pid", 1234)
+}
+
+func TestReinfectionLoop_Suppresses(t *testing.T) {
+	advance, cleanup := withTime(t, time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC))
+	defer cleanup()
+
+	c := New(nil, NewMemoryKnownIPs())
+	c.ReinfectThreshold = 3
+	c.ReinfectWindow = 10 * time.Minute
+	c.ReinfectMute = 1 * time.Hour
+
+	// First two events pass through normally (1 event back: original).
+	for i := 0; i < 2; i++ {
+		out := c.Process(suspiciousProcessEvent("/tmp/.x/payload"))
+		if len(out) != 1 {
+			t.Fatalf("hit %d: expected 1 event, got %d", i+1, len(out))
+		}
+		advance(2 * time.Minute)
+	}
+
+	// Third event crosses threshold — get original + reinfection alert.
+	out := c.Process(suspiciousProcessEvent("/tmp/.x/payload"))
+	if len(out) != 2 {
+		t.Fatalf("threshold hit: expected 2 events, got %d", len(out))
+	}
+	if out[1].Type != event.TypeProcessReinfection {
+		t.Errorf("derived event type: %q", out[1].Type)
+	}
+	if out[1].Severity != event.SevCritical {
+		t.Errorf("severity: %q", out[1].Severity)
+	}
+	if cnt, _ := out[1].Fields["count"].(int); cnt != 3 {
+		t.Errorf("count: %d", cnt)
+	}
+
+	// Fourth event INSIDE the mute window must be suppressed entirely.
+	advance(2 * time.Minute)
+	if out := c.Process(suspiciousProcessEvent("/tmp/.x/payload")); out != nil {
+		t.Errorf("expected nil (suppressed), got %d events", len(out))
+	}
+
+	// And so should the fifth, sixth, etc.
+	for i := 0; i < 10; i++ {
+		advance(time.Minute)
+		if out := c.Process(suspiciousProcessEvent("/tmp/.x/payload")); out != nil {
+			t.Errorf("iteration %d: expected suppressed, got %d events", i, len(out))
+		}
+	}
+
+	// After the mute window passes, the counter resets and events flow.
+	advance(2 * time.Hour)
+	out = c.Process(suspiciousProcessEvent("/tmp/.x/payload"))
+	if len(out) != 1 {
+		t.Errorf("after mute: expected 1 (passthrough, counter reset), got %d", len(out))
+	}
+}
+
+func TestReinfectionLoop_DifferentExesAreIndependent(t *testing.T) {
+	advance, cleanup := withTime(t, time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC))
+	defer cleanup()
+
+	c := New(nil, NewMemoryKnownIPs())
+	c.ReinfectThreshold = 2
+
+	// /tmp/.a/payload — fire 2 events to trip threshold.
+	c.Process(suspiciousProcessEvent("/tmp/.a/payload"))
+	advance(time.Second)
+	out := c.Process(suspiciousProcessEvent("/tmp/.a/payload"))
+	if len(out) != 2 {
+		t.Errorf("a: expected reinfection alert at threshold, got %d events", len(out))
+	}
+
+	// /tmp/.b/other — must STILL pass through (independent counter).
+	advance(time.Second)
+	out = c.Process(suspiciousProcessEvent("/tmp/.b/other"))
+	if len(out) != 1 {
+		t.Errorf("b: must be independent, got %d events", len(out))
+	}
+}
+
+func TestReinfectionLoop_NoExeFieldDoesNotCrash(t *testing.T) {
+	c := New(nil, NewMemoryKnownIPs())
+	e := event.New(event.TypeProcessSuspicious, event.SevHigh, "no exe")
+	out := c.Process(e)
+	if len(out) != 1 {
+		t.Errorf("expected passthrough when exe missing, got %d", len(out))
+	}
+}
+
 func TestKnownIPs_Persistence(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "known_ips.json")

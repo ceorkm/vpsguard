@@ -30,6 +30,7 @@ const (
 	TypeProcessEnvTamper     = "process.env_tamper"
 	TypeProcessCredAccess    = "process.credential_access"
 	TypeProcessTmpOutbound   = "process.tmp_with_outbound"
+	TypeProcessReinfection   = "process.reinfection_loop"
 	TypeServiceExposed       = "service.exposed"
 	TypeCronModified         = "cron.modified"
 	TypeSSHKeyAdded          = "ssh_key.added"

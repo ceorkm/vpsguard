@@ -42,6 +42,8 @@ func Format(e *event.Event) string {
 		return formatSuspiciousProcess(e)
 	case event.TypeProcessTmpOutbound:
 		return formatSuspiciousProcess(e)
+	case event.TypeProcessReinfection:
+		return formatReinfection(e)
 	case event.TypeCPUSpike:
 		return formatCPUSpike(e)
 	case event.TypeOutboundSSHSpike:
@@ -279,6 +281,30 @@ func formatSuspiciousProcess(e *event.Event) string {
 	}
 	if e.Message != "" {
 		parts = append(parts, "*Detail:* "+esc(e.Message))
+	}
+	parts = append(parts, footer(e))
+	return join(parts)
+}
+
+func formatReinfection(e *event.Event) string {
+	parts := headerLines(e, "🚨 *Reinfection loop detected*")
+	if exe := fieldCode(e, "exe"); exe != "" {
+		parts = append(parts, "*Exe:* `"+exe+"`")
+	}
+	if count := fieldStr(e, "count"); count != "" {
+		parts = append(parts, "*Seen:* "+count+" times")
+	}
+	if window := fieldStr(e, "window"); window != "" {
+		parts = append(parts, "*Window:* "+window)
+	}
+	if mute := fieldStr(e, "mute"); mute != "" {
+		parts = append(parts, "*Suppressing further alerts for:* "+mute)
+	}
+	if e.Message != "" {
+		parts = append(parts, "*Detail:* "+esc(e.Message))
+	}
+	if rec := fieldStr(e, "recommended"); rec != "" {
+		parts = append(parts, "*Recommended:* "+rec)
 	}
 	parts = append(parts, footer(e))
 	return join(parts)

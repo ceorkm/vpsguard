@@ -62,6 +62,25 @@ func isSensitivePath(p string) bool {
 			return true
 		}
 	}
+	// SSH agent sockets — `/tmp/ssh-XXXX/agent.NNN` and
+	// `/run/user/<uid>/keyring/ssh` and friends. A non-ssh-client process
+	// holding the agent socket open is credential theft (the agent
+	// proxies signing operations using your loaded keys).
+	if strings.HasPrefix(p, "/tmp/ssh-") && strings.Contains(p, "/agent.") {
+		return true
+	}
+	if strings.HasPrefix(p, "/run/user/") {
+		// /run/user/<uid>/keyring/ssh OR /run/user/<uid>/gnupg/S.gpg-agent.ssh
+		if strings.HasSuffix(p, "/keyring/ssh") ||
+			strings.HasSuffix(p, "/keyring/.ssh") ||
+			strings.Contains(p, "/gnupg/S.gpg-agent") {
+			return true
+		}
+	}
+	// Kubernetes pod-mounted serviceaccount tokens.
+	if strings.HasPrefix(p, "/var/run/secrets/kubernetes.io/serviceaccount/") {
+		return true
+	}
 	if strings.HasPrefix(p, "/home/") {
 		rest := strings.TrimPrefix(p, "/home/")
 		slash := strings.IndexByte(rest, '/')

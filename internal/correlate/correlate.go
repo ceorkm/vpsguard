@@ -27,6 +27,13 @@ const (
 	defaultTotalThreshold   = 50
 	defaultPostFailWindow   = 10 * time.Minute
 	defaultPostFailMinFails = 5
+
+	// Reinfection-loop tunables. Default: same exe respawning ≥3 times
+	// in 30 min triggers ONE process.reinfection_loop alert and then
+	// silences per-PID alerts for that exe for 6 hours.
+	defaultReinfectWindow    = 30 * time.Minute
+	defaultReinfectThreshold = 3
+	defaultReinfectMute      = 6 * time.Hour
 )
 
 // Now is overridable in tests.
@@ -45,12 +52,26 @@ type Correlator struct {
 	PostFailWindow   time.Duration
 	PostFailMinFails int
 
-	mu           sync.Mutex
-	ipState      map[string]*ipState
-	bruteSent    map[string]time.Time // suppress repeat brute-force alerts per IP for window
-	total        totalState
-	incidents    map[string]*incidentState
-	nextIncident int
+	ReinfectWindow    time.Duration
+	ReinfectThreshold int
+	ReinfectMute      time.Duration
+
+	mu            sync.Mutex
+	ipState       map[string]*ipState
+	bruteSent     map[string]time.Time // suppress repeat brute-force alerts per IP for window
+	total         totalState
+	incidents     map[string]*incidentState
+	nextIncident  int
+	reinfectState map[string]*reinfectionState
+}
+
+// reinfectionState tracks how often a single executable has been seen
+// triggering a process-class alert. Used to recognise watchdog-style
+// implants that get re-dropped from cron / systemd / .bashrc and would
+// otherwise spam the user with a fresh Telegram alert per re-spawn.
+type reinfectionState struct {
+	times     []time.Time
+	alertedAt time.Time
 }
 
 // KnownIPs persists the set of IPs that have ever logged in successfully.
@@ -86,11 +107,15 @@ func New(cfg *config.Config, known KnownIPs) *Correlator {
 		EnumThreshold:    defaultEnumThreshold,
 		TotalWindow:      defaultTotalWindow,
 		TotalThreshold:   defaultTotalThreshold,
-		PostFailWindow:   defaultPostFailWindow,
-		PostFailMinFails: defaultPostFailMinFails,
-		ipState:          map[string]*ipState{},
-		bruteSent:        map[string]time.Time{},
-		incidents:        map[string]*incidentState{},
+		PostFailWindow:    defaultPostFailWindow,
+		PostFailMinFails:  defaultPostFailMinFails,
+		ReinfectWindow:    defaultReinfectWindow,
+		ReinfectThreshold: defaultReinfectThreshold,
+		ReinfectMute:      defaultReinfectMute,
+		ipState:           map[string]*ipState{},
+		bruteSent:         map[string]time.Time{},
+		incidents:         map[string]*incidentState{},
+		reinfectState:     map[string]*reinfectionState{},
 	}
 }
 
@@ -146,11 +171,70 @@ func (c *Correlator) Process(e *event.Event) []*event.Event {
 		if alert := c.checkSuccessAfterFailures(e); alert != nil {
 			out = append(out, alert)
 		}
+	case event.TypeProcessSuspicious, event.TypeProcessTmpOutbound,
+		event.TypeProcessKnownMiner, event.TypeProcessHighCPU,
+		event.TypeProcessWebShell, event.TypeProcessCredAccess,
+		event.TypeProcessEnvTamper:
+		// Reinfection-loop detection. The same executable getting flagged
+		// again and again typically means a cron / systemd / .bashrc
+		// payload keeps re-spawning it. We want ONE escalated alert,
+		// not a Telegram message every 5 minutes.
+		if alert, suppress := c.checkReinfection(e); suppress {
+			return nil
+		} else if alert != nil {
+			out = append(out, alert)
+		}
 	}
 	for _, produced := range out {
 		c.attachIncident(produced)
 	}
 	return out
+}
+
+// checkReinfection updates the per-exe respawn counter for a process
+// event. If the threshold is hit it returns the synthesized
+// reinfection_loop alert. If we're already inside the post-alert mute
+// window it returns suppress=true so the caller drops the event entirely.
+func (c *Correlator) checkReinfection(e *event.Event) (alert *event.Event, suppress bool) {
+	exe := stringField(e, "exe")
+	if exe == "" {
+		return nil, false
+	}
+	st := c.reinfectState[exe]
+	if st == nil {
+		st = &reinfectionState{}
+		c.reinfectState[exe] = st
+	}
+	now := Now()
+
+	// Already alerted recently → suppress further per-PID noise.
+	if !st.alertedAt.IsZero() && now.Sub(st.alertedAt) < c.ReinfectMute {
+		return nil, true
+	}
+
+	// Trim, append, and decide.
+	cutoff := now.Add(-c.ReinfectWindow)
+	st.times = trimBefore(st.times, cutoff)
+	st.times = append(st.times, now)
+
+	if len(st.times) < c.ReinfectThreshold {
+		return nil, false
+	}
+
+	st.alertedAt = now
+	count := len(st.times)
+	return event.New(event.TypeProcessReinfection, event.SevCritical,
+			"Process keeps respawning — reinfection loop detected").
+			WithSource("correlator").
+			WithMessage(fmt.Sprintf(
+				"the same executable has been flagged %d times within %s — likely watchdog-style persistence (cron, systemd, ~/.bashrc, or a parent service)",
+				count, c.ReinfectWindow)).
+			WithField("exe", exe).
+			WithField("count", count).
+			WithField("window", c.ReinfectWindow.String()).
+			WithField("mute", c.ReinfectMute.String()).
+			WithField("recommended", "find the source: ls -la /etc/cron.d/ /etc/cron.hourly/ /var/spool/cron/ /etc/systemd/system/ ~/.bashrc"),
+		false
 }
 
 func maxSeverity(a, b event.Severity) event.Severity {
