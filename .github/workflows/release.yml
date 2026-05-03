@@ -35,15 +35,17 @@ jobs:
             | tar xz nfpm
           sudo install -m 0755 nfpm /usr/local/bin/nfpm
 
-      - name: Build .deb (amd64 + arm64)
+      - name: Build .deb + .rpm (amd64 + arm64)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          GOARCH=amd64 VERSION=${{ steps.version.outputs.version }} nfpm pkg --packager deb --config packaging/nfpm.yml --target dist/
-          GOARCH=arm64 VERSION=${{ steps.version.outputs.version }} nfpm pkg --packager deb --config packaging/nfpm.yml --target dist/
-
-      - name: Build .rpm (amd64 + arm64)
-        run: |
-          GOARCH=amd64 VERSION=${{ steps.version.outputs.version }} nfpm pkg --packager rpm --config packaging/nfpm.yml --target dist/
-          GOARCH=arm64 VERSION=${{ steps.version.outputs.version }} nfpm pkg --packager rpm --config packaging/nfpm.yml --target dist/
+          # nfpm expands env vars in top-level fields (name, version, arch)
+          # but not inside `contents`. Pre-render the spec per arch with envsubst.
+          for arch in amd64 arm64; do
+            GOARCH=$arch envsubst < packaging/nfpm.yml > /tmp/nfpm-$arch.yml
+            nfpm pkg --packager deb --config /tmp/nfpm-$arch.yml --target dist/
+            nfpm pkg --packager rpm --config /tmp/nfpm-$arch.yml --target dist/
+          done
 
       - name: Generate checksums
         run: cd dist && sha256sum * > checksums.txt
