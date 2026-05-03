@@ -29,7 +29,7 @@ func run(ctx context.Context, out chan<- *event.Event, d *Detector) error {
 	state := map[int]*pidState{}
 	threshold := d.HighCPUThreshold
 	if threshold <= 0 {
-		threshold = 70
+		threshold = 50 // any single process holding ≥50% of one core sustained = suspect
 	}
 	sustain := d.HighCPUSustain
 	if sustain <= 0 {
@@ -140,8 +140,35 @@ func inspect(pid int) *event.Event {
 			WithField("reason", reason)
 	}
 
+	// Sensitive-file access by any process. Native /proc/PID/fd scan;
+	// no auditd or eBPF dependency. Catches stealers that hold an open
+	// fd on /etc/shadow, ~/.ssh/id_rsa, ~/.aws/credentials, etc.
+	if path := scanFDsForSensitive(pid); path != "" {
+		return event.New(event.TypeProcessCredAccess, event.SevCritical,
+			"Process has a sensitive credential file open").
+			WithSource(Name).
+			WithMessage("a process is currently holding a known credential or secret file open — possible info-stealer").
+			WithField("pid", pid).
+			WithField("exe", cleanExe).
+			WithField("cmdline", cmdline).
+			WithField("path", path)
+	}
+
 	for _, p := range suspiciousPrefixes {
 		if strings.HasPrefix(cleanExe, p) {
+			// Combo rule: /tmp binary + outbound public socket = critical.
+			// This is the universal "drop in /tmp, dial home" pattern that
+			// virtually every miner / stealer / botnet implant exhibits.
+			if hasOutboundSocket(pid) {
+				return event.New(event.TypeProcessTmpOutbound, event.SevCritical,
+					"Suspicious process from /tmp making outbound connection").
+					WithSource(Name).
+					WithMessage("a binary in a writable temp directory has at least one connection to a public IP — almost certainly attacker-deployed").
+					WithField("pid", pid).
+					WithField("exe", cleanExe).
+					WithField("cmdline", cmdline).
+					WithField("reason", "exe_in_tmp_with_outbound")
+			}
 			return event.New(event.TypeProcessSuspicious, event.SevHigh,
 				"Suspicious process running from temporary path").
 				WithSource(Name).

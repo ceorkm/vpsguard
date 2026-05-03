@@ -28,6 +28,8 @@ const (
 	TypeProcessKnownMiner    = "process.known_miner"
 	TypeProcessWebShell      = "process.webshell"
 	TypeProcessEnvTamper     = "process.env_tamper"
+	TypeProcessCredAccess    = "process.credential_access"
+	TypeProcessTmpOutbound   = "process.tmp_with_outbound"
 	TypeCronModified         = "cron.modified"
 	TypeSSHKeyAdded          = "ssh_key.added"
 	TypeUserCreated          = "user.created"
