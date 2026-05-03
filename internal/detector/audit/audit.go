@@ -76,6 +76,22 @@ func parseLine(line string) *event.Event {
 			WithField("path", extract(reName, line)).
 			WithField("exe", extract(reExe, line)).
 			WithField("raw", line)
+	case strings.Contains(low, "key=vpsguard-pam") || strings.Contains(low, "/etc/pam.d") || strings.Contains(low, "/lib/security"):
+		return event.New(event.TypeSystemdServiceAdded, event.SevCritical, "PAM persistence path changed").
+			WithSource(Name).
+			WithMessage("PAM configuration or module paths changed; attackers use PAM backdoors for covert access and credential capture").
+			WithField("path", extract(reName, line)).
+			WithField("exe", extract(reExe, line)).
+			WithField("raw", line).
+			WithField("reason", "pam_modified")
+	case strings.Contains(low, "key=vpsguard-docker-sock") || strings.Contains(low, "/var/run/docker.sock"):
+		return event.New(event.TypeAuditSensitiveFile, event.SevHigh, "Docker socket access detected").
+			WithSource(Name).
+			WithMessage("Docker socket access can grant host-level control and is heavily abused in cloud miner campaigns").
+			WithField("path", extract(reName, line)).
+			WithField("exe", extract(reExe, line)).
+			WithField("raw", line).
+			WithField("reason", "docker_socket_access")
 	case strings.Contains(low, "ptrace") || strings.Contains(low, "key=vpsguard-ptrace"):
 		return event.New(event.TypeAuditSensitiveFile, event.SevHigh, "Process memory inspection detected").
 			WithSource(Name).

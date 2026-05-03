@@ -159,13 +159,19 @@ func SuspiciousDomain(domain string) string {
 
 func MatchKnownBadDomain(domain string, known []string) string {
 	domain = normalizeDomain(domain)
-	for _, raw := range known {
-		k := normalizeDomain(raw)
-		if k == "" {
-			continue
-		}
-		if domain == k || strings.HasSuffix(domain, "."+k) {
-			return k
+	// User-configured list first (so user overrides take precedence in
+	// telemetry — though both lists fire identically). Fall through to
+	// the built-in default list so a fresh install catches the common
+	// exfil paths without needing config.
+	for _, list := range [][]string{known, BuiltinBadDomains} {
+		for _, raw := range list {
+			k := normalizeDomain(raw)
+			if k == "" {
+				continue
+			}
+			if domain == k || strings.HasSuffix(domain, "."+k) {
+				return k
+			}
 		}
 	}
 	return ""

@@ -35,6 +35,7 @@ import (
 	"github.com/ceorkm/vpsguard/internal/detector/audit"
 	"github.com/ceorkm/vpsguard/internal/detector/cpu"
 	"github.com/ceorkm/vpsguard/internal/detector/dns"
+	"github.com/ceorkm/vpsguard/internal/detector/exposure"
 	"github.com/ceorkm/vpsguard/internal/detector/filewatch"
 	"github.com/ceorkm/vpsguard/internal/detector/fim"
 	"github.com/ceorkm/vpsguard/internal/detector/logpattern"
@@ -149,6 +150,7 @@ func runCmd(args []string) {
 	disableTelegram := fs.Bool("no-telegram", false, "disable Telegram delivery (stdout only)")
 	disableNetwork := fs.Bool("no-network", false, "disable outbound abuse detector")
 	disableDNS := fs.Bool("no-dns", false, "disable DNS anomaly / known-bad domain detector")
+	disableExposure := fs.Bool("no-exposure", false, "disable risky public service exposure detector")
 	disableAudit := fs.Bool("no-audit", false, "disable audit.log detector")
 	disableRootkit := fs.Bool("no-rootkit", false, "disable rootkit checks")
 	disableFIM := fs.Bool("no-fim", false, "disable file integrity detector")
@@ -189,6 +191,9 @@ func runCmd(args []string) {
 	}
 	if !*disableDNS && runtime.GOOS == "linux" {
 		detectors = append(detectors, &dns.Detector{KnownBadDomains: cfg.KnownBadDomainList()})
+	}
+	if !*disableExposure && runtime.GOOS == "linux" {
+		detectors = append(detectors, &exposure.Detector{})
 	}
 	if !*disableAudit && runtime.GOOS == "linux" {
 		detectors = append(detectors, &audit.Detector{})

@@ -16,7 +16,7 @@ import (
 func testEventCmd(args []string) {
 	fs := flag.NewFlagSet("test-event", flag.ExitOnError)
 	configPath := fs.String("config", config.DefaultPath, "path to config.yml")
-	kind := fs.String("type", "all", "event type: all|ssh-login|bruteforce|miner|cron|outbound|rdp|known-bad|dns|tamper")
+	kind := fs.String("type", "all", "event type: all|ssh-login|bruteforce|miner|cron|outbound|rdp|known-bad|dns|exposure|tamper")
 	sendTelegram := fs.Bool("telegram", false, "also send synthetic events to Telegram if configured")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
@@ -121,6 +121,14 @@ func syntheticEvents(kind, server string) ([]*event.Event, error) {
 			WithField("reason", "long_label").
 			WithField("queries", 38).
 			WithField("window", "5m0s"))
+	}
+	if kind == "all" || kind == "exposure" {
+		add(event.New(event.TypeServiceExposed, event.SevCritical, "Risky service exposed publicly").
+			WithSource("test-event").
+			WithMessage("unauthenticated Docker APIs are routinely abused to mount the host filesystem and drop miners or bot tooling").
+			WithField("service", "Docker API").
+			WithField("ip", "0.0.0.0").
+			WithField("port", 2375))
 	}
 	if kind == "all" || kind == "tamper" {
 		add(event.New(event.TypeAgentBinaryModified, event.SevCritical, "vpsguard binary changed on disk").

@@ -18,6 +18,7 @@ Status legend: `M`=MVP (v0.3), `1`=v1.x, `2`=v2.x, `F`=Future
 | SSH password spray (many users, few attempts) | T1110.003 | distinct ssh_user count per IP | M |
 | SSH compromised credentials (success after fails) | T1078 | correlation: failed-burst → success | M |
 | Exposed control panel brute-force (HestiaCP, cPanel, aaPanel) | T1190 | grok panel logs | 1 |
+| Risky public Docker/Redis/Postgres/WebLogic/Kube/etc. exposure | T1190 | `/proc/net/tcp{,6}` listen-socket scan | 1 |
 | Web app exploit landing in /tmp | T1190 | inotify /tmp + close_write + exec | 1 |
 | Postfix/Dovecot SMTP/IMAP brute-force | T1110.001 | grok mail logs (Fail2Ban patterns) | 1 |
 | MySQL/Postgres auth brute-force | T1110.001 | grok mysql/postgres logs | 1 |
@@ -35,6 +36,8 @@ Status legend: `M`=MVP (v0.3), `1`=v1.x, `2`=v2.x, `F`=Future
 | Fileless (deleted binary still running) | T1620 | /proc/*/exe → "(deleted)" suffix | 1 |
 | Reflective ELF loading | T1620 | /proc/PID/maps anonymous executable mapping | 2 |
 | netcat with `-e`/`-c` (RCE) | T1059.004 | execve args inspection | M |
+| `curl|sh`, `wget|bash`, Base64 encoded shell payload | T1059.004 | /proc cmdline inspection | 1 |
+| Suspicious Docker host mount / privileged container | T1611 | /proc cmdline + audit docker.sock watch | 1 |
 | `bash -i >& /dev/tcp/...` reverse shell | T1059.004 | dup2 syscall to socket fd (eBPF) | 2 |
 | Container escape via release_agent | T1611 | inotify on cgroup release_agent | 2 |
 
@@ -54,7 +57,7 @@ Status legend: `M`=MVP (v0.3), `1`=v1.x, `2`=v2.x, `F`=Future
 | `/etc/ld.so.preload` modified (linker rootkit) | T1574.006 | inotify | M |
 | `~/.bashrc` / `/etc/profile` / `/etc/bash.bashrc` modified | T1546.004 | inotify | M |
 | `/etc/motd` / `/etc/update-motd.d/` modified | T1546.004 | inotify | 1 |
-| PAM module added or modified | T1556.003 | inotify on /etc/pam.d/ + /lib/security/ | 1 |
+| PAM module added or modified | T1556.003 | inotify + audit on /etc/pam.d/ + /lib/security/ | 1 |
 | `/etc/rc.local` modified | T1037.004 | inotify | 1 |
 | systemd-run scheduled task | T1053.006 | auditd `setup_systemd_run` rule | 1 |
 | Web shell file created in webroot | T1505.003 | optional path-watch (user-configured webroots) | 1 |
@@ -105,6 +108,8 @@ Status legend: `M`=MVP (v0.3), `1`=v1.x, `2`=v2.x, `F`=Future
 | `~/.ssh/id_rsa` (private key) read | T1552.004 | fanotify | 1 |
 | `~/.aws/credentials` / `.config/gcloud/` read | T1552.001 | fanotify | 1 |
 | `~/.docker/config.json` read | T1552.001 | fanotify | 1 |
+| `~/.kube/config`, npm/PyPI/GitHub/git credentials read | T1552.001 | /proc fd scan + audit fallback | 1 |
+| `/dev/input` or `/dev/uinput` opened (keylogger clue) | T1056.001 | /proc fd scan | 1 |
 | Memory dump via `/proc/*/maps` + read | T1003.007 | fanotify on `/proc/*/mem` | 2 |
 | Kernel keyring read (`keyctl`) | T1552.007 | execve `keyctl` watch | 2 |
 | Shell history read by another user | T1552.003 | fanotify on `~/.bash_history` | 2 |
@@ -242,6 +247,9 @@ Features:
 - [x] Postfix/Dovecot brute-force (Fail2Ban patterns ported)
 - [x] nginx/apache HTTP brute-force (Fail2Ban patterns)
 - [x] Recidive tier (repeat-offender escalation through suppressing/grouped repeat alerts)
+- [x] Risky public service exposure detector: Docker API, Redis, Postgres, MySQL, MongoDB, Elasticsearch, WebLogic, Jenkins/dev HTTP, Jupyter, Kubernetes API/kubelet, VNC, Memcached
+- [x] Downloader and encoded-payload command detection: `curl|sh`, `wget|bash`, Base64 decode to shell, Tor/onion downloader
+- [x] Suspicious Docker host access detection: privileged containers, host root mount, docker.sock access
 
 ### v1.2 — auditd integration — 2 weeks
 
@@ -251,6 +259,8 @@ Features:
 - [x] Setuid execve detection
 - [x] Kernel module load detection
 - [x] Sensitive-file access via auditd (alternative path to fanotify)
+- [x] Docker socket access audit watch
+- [x] PAM config/module audit watch
 
 ### v1.3 — Rootkit checks — 2 weeks
 
@@ -276,6 +286,9 @@ Features:
 
 Features:
 - [x] auditd sensitive-file access on `/etc/shadow`, `~/.ssh/id_*`, `~/.aws/`, `~/.docker/`
+- [x] process FD scan for kubeconfig, npm/PyPI/GitHub/git credentials, shell history
+- [x] keylogger clue detection for `/dev/input` and `/dev/uinput` access
+- [x] clipboard tool execution detection (`xclip`, `xsel`, `wl-paste`)
 - [x] LD_PRELOAD env injection detection
 - [x] HISTFILE tampering detection
 

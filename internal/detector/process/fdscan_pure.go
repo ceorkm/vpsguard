@@ -24,8 +24,15 @@ var sensitivePathPrefixes = []string{
 	"/root/.aws/config",
 	"/root/.config/gcloud/",
 	"/root/.docker/config.json",
+	"/root/.kube/config",
+	"/root/.npmrc",
+	"/root/.pypirc",
+	"/root/.git-credentials",
+	"/root/.config/gh/hosts.yml",
 	"/root/.bash_history",
 	"/root/.zsh_history",
+	"/dev/input/",
+	"/dev/uinput",
 }
 
 // Per-user home prefixes are checked separately because /home/<user>/
@@ -40,6 +47,11 @@ var sensitiveHomeSuffixes = []string{
 	"/.config/gcloud/credentials.db",
 	"/.config/gcloud/legacy_credentials/",
 	"/.docker/config.json",
+	"/.kube/config",
+	"/.npmrc",
+	"/.pypirc",
+	"/.git-credentials",
+	"/.config/gh/hosts.yml",
 	"/.bash_history",
 	"/.zsh_history",
 }

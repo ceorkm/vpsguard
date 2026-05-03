@@ -54,6 +54,10 @@ var defaults = []watch{
 
 	// Linker / shell init (high-impact persistence)
 	{path: "/etc/ld.so.preload", typ: event.TypeSystemdServiceAdded, severity: event.SevCritical, title: "/etc/ld.so.preload modified", message: "ld.so.preload is a classic linker-rootkit persistence path"},
+	{path: "/etc/pam.d", typ: event.TypeSystemdServiceAdded, severity: event.SevCritical, title: "PAM configuration changed", message: "PAM changes can create stealth login backdoors or credential capture"},
+	{path: "/lib/security", typ: event.TypeSystemdServiceAdded, severity: event.SevCritical, title: "PAM module path changed", message: "new or modified PAM modules can create covert authentication backdoors"},
+	{path: "/lib64/security", typ: event.TypeSystemdServiceAdded, severity: event.SevCritical, title: "PAM module path changed", message: "new or modified PAM modules can create covert authentication backdoors"},
+	{path: "/usr/lib/security", typ: event.TypeSystemdServiceAdded, severity: event.SevCritical, title: "PAM module path changed", message: "new or modified PAM modules can create covert authentication backdoors"},
 	{path: "/etc/profile", typ: event.TypeSystemdServiceAdded, severity: event.SevMedium, title: "/etc/profile modified"},
 	{path: "/etc/bash.bashrc", typ: event.TypeSystemdServiceAdded, severity: event.SevMedium, title: "/etc/bash.bashrc modified"},
 }
@@ -137,6 +141,23 @@ func (d *Detector) Run(ctx context.Context, out chan<- *event.Event) error {
 			if user := userFromPath(ev.Name, homeRoot); user != "" {
 				emit.WithField("user", user)
 			}
+
+			// Cron-content scan: if this is a cron file/drop-in, peek
+			// at the contents. A `curl ... | bash` line in cron is a
+			// near-certain attacker persistence pattern; upgrade to
+			// critical and surface the offending snippet.
+			if meta.typ == event.TypeCronModified && ev.Op&fsnotify.Remove == 0 {
+				if r := scanCronContent(ev.Name); r.Reason != "" {
+					emit.Severity = event.SevCritical
+					emit.Title = "Cron job contains attacker-style payload"
+					emit.WithMessage("a modified cron file contains a one-liner pattern strongly associated with miner / botnet / RAT persistence")
+					emit.WithField("reason", r.Reason)
+					if r.Snippet != "" {
+						emit.WithField("snippet", r.Snippet)
+					}
+				}
+			}
+
 			out <- emit
 		case err := <-w.Errors:
 			if err != nil && ctx.Err() == nil {

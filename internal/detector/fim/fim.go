@@ -37,6 +37,8 @@ var defaultPaths = []string{
 	"/etc/group",
 	"/etc/sudoers",
 	"/etc/ssh/sshd_config",
+	"/etc/pam.d/common-auth",
+	"/etc/pam.d/sshd",
 	"/etc/ld.so.preload",
 	"/etc/crontab",
 }

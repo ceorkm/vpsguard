@@ -38,6 +38,10 @@ var minerNames = map[string]struct{}{
 	"watchdogs":      {},
 	"sysupdate":      {},
 	"networkservice": {},
+	"perfctl":        {},
+	"perfcc":         {},
+	"kinsingd":       {},
+	"system-linux":   {},
 }
 
 func baseName(p string) string {
@@ -115,6 +119,32 @@ func suspiciousCommand(cmd string) string {
 		return "socat_exec"
 	case strings.Contains(low, "masscan ") || strings.Contains(low, "zmap "):
 		return "internet_scan_tool"
+	case downloaderPipeShell(low):
+		return "downloader_piped_to_shell"
+	case encodedShellPayload(low):
+		return "encoded_shell_payload"
+	case strings.Contains(low, ".onion") && (strings.Contains(low, "torsocks") || strings.Contains(low, "tor ")):
+		return "tor_onion_downloader"
+	case strings.Contains(low, "docker ") && (strings.Contains(low, "-v /:/host") || strings.Contains(low, "--privileged") || strings.Contains(low, "/var/run/docker.sock")):
+		return "suspicious_docker_host_access"
+	case strings.Contains(low, "xclip") || strings.Contains(low, "xsel ") || strings.Contains(low, "wl-paste"):
+		return "clipboard_access"
 	}
 	return ""
+}
+
+func downloaderPipeShell(low string) bool {
+	hasDownloader := strings.Contains(low, "curl ") || strings.Contains(low, "wget ")
+	hasShell := strings.Contains(low, "| sh") || strings.Contains(low, "|sh") ||
+		strings.Contains(low, "| bash") || strings.Contains(low, "|bash")
+	return hasDownloader && hasShell
+}
+
+func encodedShellPayload(low string) bool {
+	hasDecode := strings.Contains(low, "base64 -d") || strings.Contains(low, "base64 --decode") ||
+		strings.Contains(low, "python -c") || strings.Contains(low, "python3 -c") ||
+		strings.Contains(low, "perl -e")
+	hasShell := strings.Contains(low, "| sh") || strings.Contains(low, "| bash") ||
+		strings.Contains(low, "sh -c") || strings.Contains(low, "bash -c")
+	return hasDecode && hasShell
 }

