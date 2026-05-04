@@ -12,8 +12,8 @@ func TestIsSensitivePath(t *testing.T) {
 		want bool
 	}{
 		{"/etc/shadow", true},
-		{"/etc/sudoers", true},
-		{"/etc/sudoers.d/90-cloud-init", true},
+		{"/etc/sudoers", false},
+		{"/etc/sudoers.d/90-cloud-init", false},
 		{"/etc/ssh/ssh_host_rsa_key", true},
 		{"/root/.ssh/id_rsa", true},
 		{"/root/.ssh/id_ed25519", true},

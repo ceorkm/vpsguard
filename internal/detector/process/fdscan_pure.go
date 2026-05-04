@@ -17,7 +17,6 @@ import (
 var sensitivePathPrefixes = []string{
 	"/etc/shadow",
 	"/etc/gshadow",
-	"/etc/sudoers",
 	"/etc/ssh/ssh_host_",
 	"/root/.ssh/id_",
 	"/root/.aws/credentials",

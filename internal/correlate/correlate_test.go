@@ -411,6 +411,25 @@ func TestReinfectionLoop_NoExeFieldDoesNotCrash(t *testing.T) {
 	}
 }
 
+func TestCredentialAccessDoesNotTriggerReinfectionLoop(t *testing.T) {
+	c := New(nil, NewMemoryKnownIPs())
+	c.ReinfectThreshold = 2
+
+	e := func() *event.Event {
+		return event.New(event.TypeProcessCredAccess, event.SevCritical, "credential access").
+			WithSource("process").
+			WithField("exe", "/usr/bin/sudo").
+			WithField("pid", 1234)
+	}
+
+	if out := c.Process(e()); len(out) != 1 {
+		t.Fatalf("first event: expected passthrough only, got %d", len(out))
+	}
+	if out := c.Process(e()); len(out) != 1 {
+		t.Fatalf("second event: credential access should not synthesize reinfection, got %d", len(out))
+	}
+}
+
 func TestKnownIPs_Persistence(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "known_ips.json")

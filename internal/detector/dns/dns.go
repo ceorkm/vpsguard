@@ -52,29 +52,47 @@ func (d *Detector) Run(ctx context.Context, out chan<- *event.Event) error {
 		<-ctx.Done()
 		return nil
 	}
-	t, err := tail.TailFile(path, tail.Config{
-		ReOpen:    true,
-		Follow:    true,
-		MustExist: true,
-		Logger:    tail.DiscardingLogger,
-	})
-	if err != nil {
-		return fmt.Errorf("dns: tail %s: %w", path, err)
-	}
-	defer t.Cleanup()
-	go func() {
-		<-ctx.Done()
-		_ = t.Stop()
-	}()
 	seen := map[string]*domainState{}
 	alertedKnownBad := map[string]time.Time{}
-	for line := range t.Lines {
-		if line.Err != nil {
-			continue
+
+	for {
+		if ctx.Err() != nil {
+			return nil
 		}
-		d.HandleLine(line.Text, path, seen, alertedKnownBad, out)
+		t, err := tail.TailFile(path, tail.Config{
+			ReOpen:    true,
+			Follow:    true,
+			MustExist: true,
+			Logger:    tail.DiscardingLogger,
+		})
+		if err != nil {
+			return fmt.Errorf("dns: tail %s: %w", path, err)
+		}
+		stopped := make(chan struct{})
+		go func() {
+			select {
+			case <-ctx.Done():
+				_ = t.Stop()
+			case <-stopped:
+			}
+		}()
+		for line := range t.Lines {
+			if line.Err != nil {
+				continue
+			}
+			d.HandleLine(line.Text, path, seen, alertedKnownBad, out)
+		}
+		close(stopped)
+		t.Cleanup()
+		if ctx.Err() != nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(30 * time.Second):
+		}
 	}
-	return nil
 }
 
 func (d *Detector) HandleLine(line, path string, seen map[string]*domainState, alertedKnownBad map[string]time.Time, out chan<- *event.Event) {

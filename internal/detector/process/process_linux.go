@@ -189,6 +189,9 @@ func inspect(pid int) *event.Event {
 	}
 
 	if deleted {
+		if isBenignDeletedProcess(cleanExe, cmdline) {
+			return nil
+		}
 		return event.New(event.TypeProcessSuspicious, event.SevHigh,
 			"Process running a deleted binary").
 			WithSource(Name).
@@ -200,6 +203,16 @@ func inspect(pid int) *event.Event {
 	}
 
 	return nil
+}
+
+func isBenignDeletedProcess(exe, cmdline string) bool {
+	base := baseName(exe)
+	if strings.HasPrefix(exe, "/usr/bin/python3") &&
+		(base == "python3" || strings.HasPrefix(base, "python3.")) &&
+		strings.Contains(cmdline, "/usr/share/unattended-upgrades/unattended-upgrade-shutdown") {
+		return true
+	}
+	return false
 }
 
 func readCmdline(pid int) string {

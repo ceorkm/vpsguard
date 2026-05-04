@@ -99,14 +99,14 @@ type incidentState struct {
 
 func New(cfg *config.Config, known KnownIPs) *Correlator {
 	return &Correlator{
-		cfg:              cfg,
-		known:            known,
-		BurstWindow:      defaultBurstWindow,
-		EnumWindow:       defaultEnumWindow,
-		BurstThreshold:   defaultBurstThreshold,
-		EnumThreshold:    defaultEnumThreshold,
-		TotalWindow:      defaultTotalWindow,
-		TotalThreshold:   defaultTotalThreshold,
+		cfg:               cfg,
+		known:             known,
+		BurstWindow:       defaultBurstWindow,
+		EnumWindow:        defaultEnumWindow,
+		BurstThreshold:    defaultBurstThreshold,
+		EnumThreshold:     defaultEnumThreshold,
+		TotalWindow:       defaultTotalWindow,
+		TotalThreshold:    defaultTotalThreshold,
 		PostFailWindow:    defaultPostFailWindow,
 		PostFailMinFails:  defaultPostFailMinFails,
 		ReinfectWindow:    defaultReinfectWindow,
@@ -173,8 +173,7 @@ func (c *Correlator) Process(e *event.Event) []*event.Event {
 		}
 	case event.TypeProcessSuspicious, event.TypeProcessTmpOutbound,
 		event.TypeProcessKnownMiner, event.TypeProcessHighCPU,
-		event.TypeProcessWebShell, event.TypeProcessCredAccess,
-		event.TypeProcessEnvTamper:
+		event.TypeProcessWebShell, event.TypeProcessEnvTamper:
 		// Reinfection-loop detection. The same executable getting flagged
 		// again and again typically means a cron / systemd / .bashrc
 		// payload keeps re-spawning it. We want ONE escalated alert,
