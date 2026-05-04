@@ -6,6 +6,10 @@
 
 A single-binary Linux agent that watches your server and pings you on Telegram the second something looks wrong.
 
+vpsguard is watcher-only. It does not block IPs, kill processes, quarantine
+files, or mutate firewall rules. Telegram is reserved for high-confidence
+"wake me up" alerts; noisier heuristics stay in local journald/JSON logs.
+
 [![ci](https://github.com/ceorkm/vpsguard/actions/workflows/ci.yml/badge.svg)](https://github.com/ceorkm/vpsguard/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/ceorkm/vpsguard?include_prereleases&sort=semver)](https://github.com/ceorkm/vpsguard/releases)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -111,6 +115,13 @@ Time: 2026-05-03 21:22 UTC
 | `heartbeat` | Agent silence (paired with healthchecks.io) catches an attacker who kills the agent |
 
 Correlation across detectors: events from the same source within 10 min get a stable `incident_id` so Telegram messages stay coherent instead of flooding.
+
+Trust-first delivery: local logs keep raw detector events, but Telegram only
+sends high-confidence incidents such as SSH brute-force, new/root/password SSH
+logins, persistence changes, miners, reverse shells, known-bad contacts, binary
+tamper, and ransom-note/encrypted-extension activity. Generic deleted-binary,
+build/deploy file churn, exposed-service observations, DNS heuristics, and SSH
+hardening notes stay local unless they combine into a stronger signal.
 
 ---
 
