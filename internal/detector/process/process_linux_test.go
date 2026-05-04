@@ -12,6 +12,12 @@ func TestIsBenignDeletedProcess(t *testing.T) {
 		want    bool
 	}{
 		{
+			name:    "vpsguard after self update or reinstall",
+			exe:     "/usr/local/bin/vpsguard",
+			cmdline: "/usr/local/bin/vpsguard run",
+			want:    true,
+		},
+		{
 			name:    "ubuntu unattended-upgrades shutdown helper",
 			exe:     "/usr/bin/python3.12",
 			cmdline: "/usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal",

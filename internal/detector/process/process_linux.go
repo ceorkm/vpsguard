@@ -207,6 +207,9 @@ func inspect(pid int) *event.Event {
 
 func isBenignDeletedProcess(exe, cmdline string) bool {
 	base := baseName(exe)
+	if exe == "/usr/local/bin/vpsguard" && strings.Contains(cmdline, "vpsguard") {
+		return true
+	}
 	if strings.HasPrefix(exe, "/usr/bin/python3") && (base == "python3" || strings.HasPrefix(base, "python3.")) {
 		for _, benign := range []string{
 			"/usr/share/unattended-upgrades/unattended-upgrade-shutdown",
