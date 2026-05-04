@@ -25,8 +25,8 @@ BIN_DST="/usr/local/bin/vpsguard"
 CONF_DIR="/etc/vpsguard"
 CONF_DST="${CONF_DIR}/config.yml"
 STATE_DIR="/var/lib/vpsguard"
-    UNIT_SRC=""           # set later — local checkout vs download
-    UNIT_TMP=""
+UNIT_SRC=""           # set later — local checkout vs download
+UNIT_TMP=""
 UNIT_DST="/etc/systemd/system/vpsguard.service"
 WATCHDOG_DST="/etc/systemd/system/vpsguard-watchdog.service"
 AUDIT_RULE_DST="/etc/audit/rules.d/80-vpsguard.rules"
@@ -35,6 +35,7 @@ AUDIT_RULE_DST="/etc/audit/rules.d/80-vpsguard.rules"
 say() { printf '\033[1;32m=>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!! \033[0m%s\n' "$*" >&2; }
 die() { printf '\033[1;31mxx \033[0m%s\n' "$*" >&2; exit 1; }
+raw_url() { printf 'https://raw.githubusercontent.com/%s/main/%s' "$REPO" "$1"; }
 
 require_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -109,7 +110,16 @@ main() {
         install -m 0600 "$local_config_example" "$CONF_DST"
         say "Sample config installed at $CONF_DST"
     else
-        warn "No sample config found — you'll need to create $CONF_DST manually"
+        local config_url config_tmp
+        config_url="$(raw_url "packaging/config.example.yml")"
+        config_tmp="$(mktemp)"
+        if curl -fsSL -o "$config_tmp" "$config_url"; then
+            install -m 0600 "$config_tmp" "$CONF_DST"
+            say "Sample config installed at $CONF_DST"
+        else
+            warn "sample config download failed; interactive setup can still create $CONF_DST"
+        fi
+        rm -f "$config_tmp"
     fi
 
     # systemd units.
@@ -117,7 +127,8 @@ main() {
         UNIT_SRC="$local_unit"
     else
         warn "Local systemd unit not found, downloading..."
-        local unit_url="https://raw.githubusercontent.com/${REPO}/main/packaging/systemd/vpsguard.service"
+        local unit_url
+        unit_url="$(raw_url "packaging/systemd/vpsguard.service")"
         UNIT_SRC="$(mktemp)"
         UNIT_TMP="$UNIT_SRC"
         if ! curl -fsSL -o "$UNIT_SRC" "$unit_url"; then
@@ -132,7 +143,8 @@ main() {
         install -m 0644 "$local_watchdog" "$WATCHDOG_DST"
         say "watchdog unit installed at $WATCHDOG_DST"
     else
-        local watchdog_url="https://raw.githubusercontent.com/${REPO}/main/packaging/systemd/vpsguard-watchdog.service"
+        local watchdog_url
+        watchdog_url="$(raw_url "packaging/systemd/vpsguard-watchdog.service")"
         if curl -fsSL -o "$WATCHDOG_DST.tmp" "$watchdog_url"; then
             install -m 0644 "$WATCHDOG_DST.tmp" "$WATCHDOG_DST"
             rm -f "$WATCHDOG_DST.tmp"
@@ -147,9 +159,10 @@ main() {
         install -m 0640 "$local_audit_rules" "$AUDIT_RULE_DST"
         say "audit rules installed at $AUDIT_RULE_DST"
     else
-        local audit_url="https://raw.githubusercontent.com/${REPO}/main/packaging/audit/80-vpsguard.rules"
+        install -d -m 0755 "$(dirname "$AUDIT_RULE_DST")"
+        local audit_url
+        audit_url="$(raw_url "packaging/audit/80-vpsguard.rules")"
         if curl -fsSL -o "$AUDIT_RULE_DST.tmp" "$audit_url"; then
-            install -d -m 0755 "$(dirname "$AUDIT_RULE_DST")"
             install -m 0640 "$AUDIT_RULE_DST.tmp" "$AUDIT_RULE_DST"
             rm -f "$AUDIT_RULE_DST.tmp"
             say "audit rules installed at $AUDIT_RULE_DST"
@@ -158,12 +171,17 @@ main() {
         fi
     fi
 
-    if [[ -t 0 && -t 1 ]] && grep -Eq "REPLACE_WITH_BOT_TOKEN|REPLACE_WITH_CHAT_ID" "$CONF_DST" 2>/dev/null; then
+    systemctl daemon-reload
+
+    if [[ -r /dev/tty && -w /dev/tty ]] && { [[ ! -f "$CONF_DST" ]] || grep -Eq "REPLACE_WITH_BOT_TOKEN|REPLACE_WITH_CHAT_ID" "$CONF_DST" 2>/dev/null; }; then
         say "Launching Telegram setup..."
-        "$BIN_DST" configure --force || warn "setup did not complete; run sudo vpsguard configure later"
+        if "$BIN_DST" configure --force </dev/tty >/dev/tty; then
+            say "Telegram setup completed"
+        else
+            warn "setup did not complete; run sudo vpsguard configure later"
+        fi
     fi
 
-    systemctl daemon-reload
     say "Enabling and starting vpsguard service..."
     if systemctl enable --now vpsguard; then
         say "vpsguard service is running"
