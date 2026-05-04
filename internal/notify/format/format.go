@@ -209,7 +209,7 @@ func formatSSHLogin(e *event.Event) string {
 		parts = append(parts, "*Method:* "+method)
 	}
 	if first := fieldStr(e, "first_seen"); first == "true" {
-		parts = append(parts, "This IP has never logged into this server before.")
+		parts = append(parts, esc("This IP has never logged into this server before."))
 	}
 	parts = append(parts, "*Detail:* "+esc(e.Title))
 	parts = append(parts, footer(e))
@@ -243,9 +243,9 @@ func formatBruteforce(e *event.Event) string {
 	if window := fieldStr(e, "window"); window != "" {
 		parts = append(parts, "*Window:* "+window)
 	}
-	parts = append(parts, "*Recommended:* review source and confirm Fail2Ban coverage")
+	parts = append(parts, "*Recommended:* "+esc("review source and confirm Fail2Ban coverage"))
 	parts = append(parts, "*Fail2Ban:* `fail2ban-client status sshd`")
-	parts = append(parts, "vpsguard does not block, kill, quarantine, or lock accounts.")
+	parts = append(parts, esc("vpsguard does not block, kill, quarantine, or lock accounts."))
 	parts = append(parts, footer(e))
 	return join(parts)
 }
@@ -369,7 +369,7 @@ func formatOutbound(e *event.Event, title, advice string) string {
 	if window := fieldStr(e, "window"); window != "" {
 		parts = append(parts, "*Window:* "+window)
 	}
-	parts = append(parts, advice)
+	parts = append(parts, esc(advice))
 	parts = append(parts, footer(e))
 	return join(parts)
 }
@@ -383,7 +383,7 @@ func formatFileChange(e *event.Event, title, advice string) string {
 		parts = append(parts, "*Op:* "+op)
 	}
 	if advice != "" {
-		parts = append(parts, advice)
+		parts = append(parts, esc(advice))
 	}
 	parts = append(parts, footer(e))
 	return join(parts)
@@ -392,7 +392,7 @@ func formatFileChange(e *event.Event, title, advice string) string {
 func formatAgent(e *event.Event, title, advice string) string {
 	parts := headerLines(e, title)
 	if advice != "" {
-		parts = append(parts, advice)
+		parts = append(parts, esc(advice))
 	}
 	parts = append(parts, footer(e))
 	return join(parts)
@@ -415,7 +415,7 @@ func formatTamper(e *event.Event) string {
 	if path := fieldCode(e, "path"); path != "" {
 		parts = append(parts, "*Path:* `"+path+"`")
 	}
-	parts = append(parts, "The agent binary changed after startup. If you did not upgrade vpsguard, investigate immediately.")
+	parts = append(parts, esc("The agent binary changed after startup. If you did not upgrade vpsguard, investigate immediately."))
 	parts = append(parts, footer(e))
 	return join(parts)
 }
@@ -431,4 +431,3 @@ func formatGeneric(e *event.Event) string {
 	parts = append(parts, footer(e))
 	return join(parts)
 }
-

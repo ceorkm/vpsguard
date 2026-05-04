@@ -69,6 +69,60 @@ func TestSend_PermanentBadToken(t *testing.T) {
 	}
 }
 
+func TestSend_FallsBackToPlainTextOnMarkdownParseError(t *testing.T) {
+	var called int32
+	var fallback sendRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&called, 1)
+		body, _ := io.ReadAll(r.Body)
+		if n == 1 {
+			var req sendRequest
+			_ = json.Unmarshal(body, &req)
+			if req.ParseMode != "MarkdownV2" {
+				t.Fatalf("first request parse_mode = %q", req.ParseMode)
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: can't parse entities: Character '.' is reserved"}`))
+			return
+		}
+		_ = json.Unmarshal(body, &fallback)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	s := &Sender{BotToken: "T", ChatID: "1", APIBase: srv.URL}
+	if err := s.Send(context.Background(), "*Path:* `/tmp/a.b`"); err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&called) != 2 {
+		t.Fatalf("expected markdown send + plain fallback, got %d calls", called)
+	}
+	if fallback.ParseMode != "" {
+		t.Fatalf("fallback parse_mode = %q, want empty", fallback.ParseMode)
+	}
+	if fallback.Text != "Path: /tmp/a.b" {
+		t.Fatalf("fallback text = %q", fallback.Text)
+	}
+}
+
+func TestSend_DoesNotFallbackForOtherPermanentErrors(t *testing.T) {
+	var called int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&called, 1)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"ok":false,"error_code":403,"description":"Forbidden"}`))
+	}))
+	defer srv.Close()
+
+	s := &Sender{BotToken: "T", ChatID: "1", APIBase: srv.URL}
+	if err := s.Send(context.Background(), "*hello*"); err == nil {
+		t.Fatal("expected error")
+	}
+	if atomic.LoadInt32(&called) != 1 {
+		t.Fatalf("expected no fallback for non-parse permanent error, got %d calls", called)
+	}
+}
+
 func TestSend_RetriesOn500(t *testing.T) {
 	var called int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,5 +213,13 @@ func TestEscapeMarkdownV2(t *testing.T) {
 		if got := EscapeMarkdownV2(c.in); got != c.want {
 			t.Errorf("Escape(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+func TestPlainTextFromMarkdownV2(t *testing.T) {
+	got := PlainTextFromMarkdownV2(`*Path:* ` + "`/tmp/a\\.b`" + ` and user\_name`)
+	want := "Path: /tmp/a.b and user_name"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

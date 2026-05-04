@@ -56,12 +56,7 @@ func (s *Sender) Send(ctx context.Context, text string) error {
 	if s.BotToken == "" || s.ChatID == "" {
 		return errors.New("telegram: bot_token and chat_id required")
 	}
-	body := sendRequest{
-		ChatID:    s.ChatID,
-		Text:      text,
-		ParseMode: "MarkdownV2",
-	}
-	payload, err := json.Marshal(body)
+	payload, err := marshalSend(s.ChatID, text, "MarkdownV2")
 	if err != nil {
 		return fmt.Errorf("telegram: marshal: %w", err)
 	}
@@ -88,6 +83,9 @@ func (s *Sender) Send(ctx context.Context, text string) error {
 		// 4xx (except 429): permanent failure, do not retry.
 		var perm *permanentError
 		if errors.As(err, &perm) {
+			if perm.status == http.StatusBadRequest && strings.Contains(strings.ToLower(perm.msg), "can't parse entities") {
+				return s.sendPlain(ctx, client, url, text)
+			}
 			return err
 		}
 
@@ -105,7 +103,30 @@ func (s *Sender) Send(ctx context.Context, text string) error {
 	return fmt.Errorf("telegram: send failed after %d attempts: %w", maxRetries, lastErr)
 }
 
-type permanentError struct{ msg string }
+func marshalSend(chatID, text, parseMode string) ([]byte, error) {
+	return json.Marshal(sendRequest{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: parseMode,
+	})
+}
+
+func (s *Sender) sendPlain(ctx context.Context, client *http.Client, url, text string) error {
+	payload, err := marshalSend(s.ChatID, PlainTextFromMarkdownV2(text), "")
+	if err != nil {
+		return fmt.Errorf("telegram: marshal fallback: %w", err)
+	}
+	_, err = s.attempt(ctx, client, url, payload)
+	if err != nil {
+		return fmt.Errorf("telegram: markdown parse failed and plain-text fallback failed: %w", err)
+	}
+	return nil
+}
+
+type permanentError struct {
+	status int
+	msg    string
+}
 
 func (p *permanentError) Error() string { return p.msg }
 
@@ -144,7 +165,8 @@ func (s *Sender) attempt(ctx context.Context, client *http.Client, url string, p
 		// 4xx (other): bad token, bad chat ID, malformed message. Don't
 		// hammer Telegram with retries that will keep failing.
 		return 0, &permanentError{
-			msg: fmt.Sprintf("telegram: %d %s (%s)", resp.StatusCode, http.StatusText(resp.StatusCode), apiResp.Description),
+			status: resp.StatusCode,
+			msg:    fmt.Sprintf("telegram: %d %s (%s)", resp.StatusCode, http.StatusText(resp.StatusCode), apiResp.Description),
 		}
 	}
 }
@@ -164,6 +186,36 @@ func EscapeMarkdownV2(s string) string {
 			b.WriteByte('\\')
 		}
 		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// PlainTextFromMarkdownV2 removes the simple formatting markers used by
+// vpsguard's templates and unescapes MarkdownV2 backslash escapes. It is used
+// only as a last-chance delivery fallback when Telegram rejects Markdown.
+func PlainTextFromMarkdownV2(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	escaped := false
+	for _, r := range s {
+		if escaped {
+			b.WriteRune(r)
+			escaped = false
+			continue
+		}
+		if r == '\\' {
+			escaped = true
+			continue
+		}
+		switch r {
+		case '*', '`':
+			continue
+		default:
+			b.WriteRune(r)
+		}
+	}
+	if escaped {
+		b.WriteByte('\\')
 	}
 	return b.String()
 }
