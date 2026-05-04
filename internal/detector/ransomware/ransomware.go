@@ -1,5 +1,7 @@
-// Package ransomware watches /home for rename/delete bursts and ransom-note
-// patterns. It is intentionally conservative and emits summaries.
+// Package ransomware watches /home for destructive rename/delete bursts and
+// ransom-note patterns. It deliberately ignores ordinary write/create bursts:
+// builds, deployments, package managers, and editor caches can legitimately
+// write hundreds of files in seconds.
 package ransomware
 
 import (
@@ -72,7 +74,7 @@ func (d *Detector) Run(ctx context.Context, out chan<- *event.Event) error {
 					WithField("reason", "ransomware_filename")
 				continue
 			}
-			if ev.Op&(fsnotify.Rename|fsnotify.Remove|fsnotify.Write|fsnotify.Create) == 0 {
+			if !isDestructiveMassOp(ev.Op) {
 				continue
 			}
 			events = append(events, now)
@@ -86,15 +88,19 @@ func (d *Detector) Run(ctx context.Context, out chan<- *event.Event) error {
 			events = filtered
 			if len(events) >= threshold && now.Sub(lastSent) > window {
 				lastSent = now
-				out <- event.New(event.TypeRansomwareActivity, event.SevCritical, "Mass file activity under /home").
+				out <- event.New(event.TypeRansomwareActivity, event.SevCritical, "Mass file rename/delete activity under /home").
 					WithSource(Name).
 					WithField("count", len(events)).
 					WithField("window", window.String()).
-					WithField("reason", "mass_file_activity")
+					WithField("reason", "mass_rename_delete")
 			}
 		case <-w.Errors:
 		}
 	}
+}
+
+func isDestructiveMassOp(op fsnotify.Op) bool {
+	return op&(fsnotify.Rename|fsnotify.Remove) != 0
 }
 
 func encryptedName(path string) bool {

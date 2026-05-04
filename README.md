@@ -105,7 +105,7 @@ Time: 2026-05-03 21:22 UTC
 | `audit` | Setuid execve, kernel-module loads, sensitive-file reads (via auditd) |
 | `rootkit` | Hidden PIDs (`kill(0)` vs `/proc`), hidden ports (`bind()` vs `ss`), hidden `/dev` files |
 | `fim` | SHA256 baseline + diff for sensitive paths |
-| `ransomware` | Mass-rename to ransom extensions, ransom-note creation in `/home` |
+| `ransomware` | Ransom extensions, ransom-note creation, destructive rename/delete bursts in `/home` |
 | `logpattern` | Postfix/Dovecot/nginx/Apache/HestiaCP brute-force |
 | `selfhash` | vpsguard binary modified or replaced on disk |
 | `heartbeat` | Agent silence (paired with healthchecks.io) catches an attacker who kills the agent |
