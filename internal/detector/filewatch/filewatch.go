@@ -244,21 +244,22 @@ func addUserKeys(w *fsnotify.Watcher, index map[string]watch, homeRoot string) {
 		}
 		keyPath := filepath.Join(homeRoot, entry.Name(), ".ssh", "authorized_keys")
 		sshDir := filepath.Join(homeRoot, entry.Name(), ".ssh")
-		if _, ok := index[keyPath]; ok {
-			continue
+		if _, ok := index[keyPath]; !ok {
+			index[keyPath] = watch{
+				path:     keyPath,
+				typ:      event.TypeSSHKeyAdded,
+				severity: event.SevHigh,
+				title:    "User authorized_keys modified",
+				message:  "a new SSH key may grant attacker persistent access to a user account",
+			}
 		}
-		index[keyPath] = watch{
-			path:     keyPath,
-			typ:      event.TypeSSHKeyAdded,
-			severity: event.SevHigh,
-			title:    "User authorized_keys modified",
-			message:  "a new SSH key may grant attacker persistent access to a user account",
-		}
-		index[sshDir] = watch{
-			path:     sshDir,
-			typ:      event.TypeSSHKeyAdded,
-			severity: event.SevMedium,
-			title:    "User .ssh directory changed",
+		if _, ok := index[sshDir]; !ok {
+			index[sshDir] = watch{
+				path:     sshDir,
+				typ:      event.TypeSSHKeyAdded,
+				severity: event.SevMedium,
+				title:    "User .ssh directory changed",
+			}
 		}
 		_ = w.Add(keyPath)
 		_ = w.Add(sshDir)

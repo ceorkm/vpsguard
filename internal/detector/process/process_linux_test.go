@@ -12,9 +12,15 @@ func TestIsBenignDeletedProcess(t *testing.T) {
 		want    bool
 	}{
 		{
-			name:    "ubuntu unattended upgrade shutdown helper",
+			name:    "ubuntu unattended-upgrades shutdown helper",
 			exe:     "/usr/bin/python3.12",
 			cmdline: "/usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal",
+			want:    true,
+		},
+		{
+			name:    "networkd-dispatcher after python package upgrade",
+			exe:     "/usr/bin/python3.12",
+			cmdline: "/usr/bin/python3 /usr/bin/networkd-dispatcher --run-startup-triggers",
 			want:    true,
 		},
 		{
@@ -36,5 +42,25 @@ func TestIsBenignDeletedProcess(t *testing.T) {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestIsBenignSensitiveFDReader(t *testing.T) {
+	if !isBenignSensitiveFDReader(
+		"/usr/lib/xorg/Xorg",
+		"/usr/lib/xorg/Xorg -core :0 -seat seat0",
+		"/dev/input/event0",
+	) {
+		t.Fatal("Xorg reading /dev/input should be treated as normal desktop/session behavior")
+	}
+	if !isBenignSensitiveFDReader(
+		"/usr/lib/systemd/systemd-logind",
+		"/usr/lib/systemd/systemd-logind",
+		"/dev/input/event0",
+	) {
+		t.Fatal("systemd-logind reading /dev/input should be treated as normal session behavior")
+	}
+	if isBenignSensitiveFDReader("/tmp/keylogger", "/tmp/keylogger", "/dev/input/event0") {
+		t.Fatal("unknown process reading /dev/input should still alert")
 	}
 }

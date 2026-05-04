@@ -18,7 +18,7 @@ import (
 // configureCmd is an interactive walkthrough that writes
 // /etc/vpsguard/config.yml after gathering the user's Telegram bot
 // token, chat ID, and a few optional fields. It exists so the install
-// experience is "answer four questions, get a working agent" rather
+// experience is "answer a few plain questions, get a working agent" rather
 // than "edit YAML in vim".
 func configureCmd(args []string) {
 	fs := flag.NewFlagSet("configure", flag.ExitOnError)
@@ -63,14 +63,13 @@ func configureCmd(args []string) {
 	token := promptRequired(in, "Telegram bot token", validateTelegramToken)
 	chatID := promptRequired(in, "Telegram chat_id (numeric)", validateChatID)
 	healthcheck := promptDefault(in, "healthchecks.io URL (optional, press Enter to skip)", "")
-	severity := promptDefault(in, "Minimum severity for Telegram (info|low|medium|high|critical)", "medium")
 
 	body := buildConfigYAML(configValues{
 		ServerName:     server,
 		BotToken:       token,
 		ChatID:         chatID,
 		HealthcheckURL: healthcheck,
-		MinSeverity:    severity,
+		MinSeverity:    "medium",
 	})
 
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {

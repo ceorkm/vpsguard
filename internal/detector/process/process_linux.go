@@ -151,7 +151,7 @@ func inspect(pid int) *event.Event {
 	// Sensitive-file access by any process. Native /proc/PID/fd scan;
 	// no auditd or eBPF dependency. Catches stealers that hold an open
 	// fd on /etc/shadow, ~/.ssh/id_rsa, ~/.aws/credentials, etc.
-	if path := scanFDsForSensitive(pid); path != "" {
+	if path := scanFDsForSensitive(pid, cleanExe, cmdline); path != "" {
 		return event.New(event.TypeProcessCredAccess, event.SevCritical,
 			"Process has a sensitive credential file open").
 			WithSource(Name).
@@ -207,10 +207,15 @@ func inspect(pid int) *event.Event {
 
 func isBenignDeletedProcess(exe, cmdline string) bool {
 	base := baseName(exe)
-	if strings.HasPrefix(exe, "/usr/bin/python3") &&
-		(base == "python3" || strings.HasPrefix(base, "python3.")) &&
-		strings.Contains(cmdline, "/usr/share/unattended-upgrades/unattended-upgrade-shutdown") {
-		return true
+	if strings.HasPrefix(exe, "/usr/bin/python3") && (base == "python3" || strings.HasPrefix(base, "python3.")) {
+		for _, benign := range []string{
+			"/usr/share/unattended-upgrades/unattended-upgrade-shutdown",
+			"/usr/bin/networkd-dispatcher",
+		} {
+			if strings.Contains(cmdline, benign) {
+				return true
+			}
+		}
 	}
 	return false
 }

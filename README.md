@@ -50,7 +50,6 @@ Server label (shows on every alert) [main-vps]:
 Telegram bot token: 123456789:AAHrealtoken...
 Telegram chat_id (numeric): 987654321
 healthchecks.io URL (optional, press Enter to skip):
-Minimum severity for Telegram (info|low|medium|high|critical) [medium]:
 
 Wrote config: /etc/vpsguard/config.yml (mode 0600)
 Sending test alert to your Telegram chat...

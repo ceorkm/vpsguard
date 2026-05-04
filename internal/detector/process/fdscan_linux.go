@@ -12,7 +12,7 @@ import (
 // scanFDsForSensitive walks /proc/PID/fd and returns the first sensitive
 // path the process has open, or "" if none. Cheap: a typical process
 // has 5–30 open fds.
-func scanFDsForSensitive(pid int) string {
+func scanFDsForSensitive(pid int, exe, cmdline string) string {
 	fdDir := filepath.Join("/proc", strconv.Itoa(pid), "fd")
 	entries, err := os.ReadDir(fdDir)
 	if err != nil {
@@ -29,11 +29,28 @@ func scanFDsForSensitive(pid int) string {
 		if !strings.HasPrefix(target, "/") {
 			continue // sockets, pipes, anon_inodes, etc.
 		}
+		if isBenignSensitiveFDReader(exe, cmdline, target) {
+			continue
+		}
 		if isSensitivePath(target) {
 			return target
 		}
 	}
 	return ""
+}
+
+func isBenignSensitiveFDReader(exe, cmdline, target string) bool {
+	if strings.HasPrefix(target, "/dev/input/") || target == "/dev/uinput" {
+		switch filepath.Base(exe) {
+		case "Xorg", "Xwayland", "systemd-logind", "lightdm", "gdm", "gdm-x-session", "sddm", "seatd":
+			return true
+		}
+		if strings.Contains(cmdline, "/usr/lib/xorg/Xorg") ||
+			strings.Contains(cmdline, "systemd-logind") {
+			return true
+		}
+	}
+	return false
 }
 
 // hasOutboundSocket returns true if the PID has at least one TCP
