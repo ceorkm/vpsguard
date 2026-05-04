@@ -20,6 +20,12 @@ contents:
       mode: 0600
   - src: ./packaging/systemd/vpsguard.service
     dst: /etc/systemd/system/vpsguard.service
+  - src: ./packaging/systemd/vpsguard-watchdog.service
+    dst: /etc/systemd/system/vpsguard-watchdog.service
+  - src: ./packaging/audit/80-vpsguard.rules
+    dst: /etc/audit/rules.d/80-vpsguard.rules
+    file_info:
+      mode: 0640
 scripts:
   postinstall: ./packaging/scripts/postinstall.sh
   preremove: ./packaging/scripts/preremove.sh

@@ -1,0 +1,12 @@
+[Unit]
+Description=vpsguard watchdog
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c 'while true; do systemctl is-active --quiet vpsguard || systemctl restart vpsguard; sleep 30; done'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

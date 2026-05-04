@@ -185,7 +185,7 @@ Why:
 - auditd already on every major distro (RHEL/Debian/Ubuntu)
 - Integrates kernel netlink at lowest level — works on kernel 3.x+
 - No eBPF/BTF requirement
-- Drop-in rules file `/etc/audit/rules.d/80-vpsguard.rules` installs on `apt install vpsguard`
+- Drop-in rules file `/etc/audit/rules.d/80-vpsguard.rules` installs with the release package or raw installer
 - Tail `/var/log/audit/audit.log` with small Go parser keying on `key=identity|ssh-key-mod|cron-mod|systemd-mod|actions|setuid-exec|perm-mod-*`
 - No cgo, no kernel headers, < 1 sec alert latency
 - Reserve inotify/fanotify reimpl for v2 zero-dependency mode + paths auditd can't glob (`/home/*/.ssh/`)
@@ -207,4 +207,4 @@ Why:
 | Distro coverage | universal | modern only |
 | vpsguard fit | **MVP / v1** | **v2 / v3** |
 
-**Plan:** v1 ships auditd integration + own rules + log tail in pure Go. v2 adds Tetragon-style eBPF for ancestry, LSM file_open, commit_creds, and TCP correlation. v3 adds inline blocking.
+**Plan:** vpsguard ships auditd integration + own rules + log tail in pure Go. Tetragon-style eBPF remains research only, not an active product commitment. vpsguard does not do inline blocking.

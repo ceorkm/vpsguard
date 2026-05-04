@@ -16,39 +16,19 @@ A single-binary Linux agent that watches your server and pings you on Telegram t
 
 ## Install
 
-### Debian / Ubuntu (recommended)
-
-```bash
-curl -fsSL https://ceorkm.github.io/vpsguard/apt/vpsguard.asc \
-  | sudo tee /etc/apt/keyrings/vpsguard.asc > /dev/null
-echo "deb [signed-by=/etc/apt/keyrings/vpsguard.asc] https://ceorkm.github.io/vpsguard/apt stable main" \
-  | sudo tee /etc/apt/sources.list.d/vpsguard.list
-sudo apt update
-sudo apt install vpsguard
-```
-
-The package's post-install hook walks you through Telegram setup automatically.
-If you skipped it (or installed unattended), run:
-
-```bash
-sudo vpsguard configure
-```
-
-### RHEL / Rocky / Alma / Fedora
-
-Grab the latest `.rpm` from the [releases page](https://github.com/ceorkm/vpsguard/releases/latest):
-
-```bash
-sudo dnf install https://github.com/ceorkm/vpsguard/releases/latest/download/vpsguard_VERSION_amd64.rpm
-sudo vpsguard configure
-```
-
-### Universal (any Linux, any distro)
+### Linux VPS
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ceorkm/vpsguard/main/packaging/install.sh | sudo bash
-sudo vpsguard configure
 ```
+
+The installer downloads the latest GitHub release for your VPS architecture,
+installs the systemd service, writes the default config if missing, asks for
+Telegram setup when running interactively, installs local audit rules and loads
+them when auditd tools are present, then starts vpsguard.
+
+You can also install from the `.deb` or `.rpm` assets attached to GitHub
+Releases.
 
 ---
 
@@ -89,8 +69,6 @@ IP: 185.220.101.45
 Method: publickey
 This IP has never logged into this server before.
 Time: 2026-05-03 21:14 UTC
-
-[Acknowledge] [False positive]
 ```
 
 ```

@@ -8,13 +8,19 @@ set -eu
 mkdir -p /var/lib/vpsguard
 chmod 0750 /var/lib/vpsguard
 
+if command -v augenrules >/dev/null 2>&1; then
+    augenrules --load >/dev/null 2>&1 || true
+elif command -v auditctl >/dev/null 2>&1 && [ -f /etc/audit/rules.d/80-vpsguard.rules ]; then
+    auditctl -R /etc/audit/rules.d/80-vpsguard.rules >/dev/null 2>&1 || true
+fi
+
 # Reload systemd so the new unit file is picked up.
 systemctl daemon-reload >/dev/null 2>&1 || true
 
 # If config still has placeholders AND we have an interactive tty AND the
 # DEBIAN_FRONTEND isn't 'noninteractive', walk the user through setup.
 if [ -t 0 ] && [ -t 1 ] && [ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]; then
-    if grep -q "REPLACE_WITH_BOT_TOKEN\|REPLACE_WITH_CHAT_ID" /etc/vpsguard/config.yml 2>/dev/null; then
+    if grep -Eq "REPLACE_WITH_BOT_TOKEN|REPLACE_WITH_CHAT_ID" /etc/vpsguard/config.yml 2>/dev/null; then
         echo
         echo "vpsguard is installed. Run setup now? (Y/n)"
         if [ -e /dev/tty ]; then
@@ -37,6 +43,7 @@ fi
 # Try to enable + start. If config is still unconfigured the agent will
 # happily run with stdout-only output until the user runs `configure`.
 systemctl enable --now vpsguard >/dev/null 2>&1 || true
+systemctl enable --now vpsguard-watchdog >/dev/null 2>&1 || true
 
 cat <<'EOF'
 

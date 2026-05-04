@@ -8,13 +8,10 @@ on:
 permissions:
   contents: write
   id-token: write
-  pages: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -34,6 +31,8 @@ jobs:
           curl -sSL "https://github.com/goreleaser/nfpm/releases/download/v2.41.3/nfpm_2.41.3_Linux_x86_64.tar.gz" \
             | tar xz nfpm
           sudo install -m 0755 nfpm /usr/local/bin/nfpm
+          sudo apt-get update
+          sudo apt-get install -y gettext-base
 
       - name: Build .deb + .rpm (amd64 + arm64)
         env:
@@ -62,124 +61,3 @@ jobs:
             dist/*.rpm
             dist/checksums.txt
             dist/checksums.txt.bundle
-
-      # Hand off the .deb files to the apt-repo job below.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: debs
-          path: dist/*.deb
-          retention-days: 1
-
-  apt-repo:
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      GPG_KEY: ${{ secrets.VPSGUARD_GPG_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: pages
-        continue-on-error: true
-
-      - name: Initialize gh-pages branch if missing
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ ! -d pages/.git ]; then
-            mkdir -p pages
-            cd pages
-            git init -b gh-pages
-            git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          fi
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: debs
-          path: debs/
-
-      - name: Install repo tooling
-        run: sudo apt-get update && sudo apt-get install -y dpkg-dev gnupg apt-utils
-
-      - name: Import GPG signing key
-        if: env.GPG_KEY != ''
-        run: |
-          echo "$GPG_KEY" | gpg --batch --import
-          gpg --list-secret-keys --keyid-format=long
-
-      - name: Build apt repo (debian/ubuntu, single suite)
-        env:
-          REPO_DIR: pages/apt
-          SUITE: stable
-          COMPONENT: main
-        run: |
-          set -eu
-          mkdir -p "$REPO_DIR/dists/$SUITE/$COMPONENT/binary-amd64"
-          mkdir -p "$REPO_DIR/dists/$SUITE/$COMPONENT/binary-arm64"
-          mkdir -p "$REPO_DIR/pool/main"
-          cp debs/*.deb "$REPO_DIR/pool/main/"
-
-          for arch in amd64 arm64; do
-            ( cd "$REPO_DIR" && dpkg-scanpackages --multiversion --arch "$arch" pool/main ) \
-              > "$REPO_DIR/dists/$SUITE/$COMPONENT/binary-$arch/Packages"
-            gzip -kf "$REPO_DIR/dists/$SUITE/$COMPONENT/binary-$arch/Packages"
-          done
-
-          cd "$REPO_DIR/dists/$SUITE"
-          {
-            echo "Origin: vpsguard"
-            echo "Label: vpsguard"
-            echo "Suite: $SUITE"
-            echo "Codename: $SUITE"
-            echo "Architectures: amd64 arm64"
-            echo "Components: $COMPONENT"
-            echo "Description: vpsguard official apt repository"
-            echo "Date: $(date -Ru)"
-            apt-ftparchive release . || true
-          } > Release
-
-      - name: Sign Release file
-        if: env.GPG_KEY != ''
-        run: |
-          cd pages/apt/dists/stable
-          KEY_ID="$(gpg --list-secret-keys --keyid-format=long | awk '/^sec/{print $2}' | head -1 | cut -d/ -f2)"
-          gpg --batch --yes --default-key "$KEY_ID" --armor --detach-sign --output Release.gpg Release
-          gpg --batch --yes --default-key "$KEY_ID" --armor --clearsign --output InRelease Release
-
-      - name: Export public key
-        if: env.GPG_KEY != ''
-        run: |
-          mkdir -p pages/apt
-          gpg --armor --export > pages/apt/vpsguard.asc
-
-      - name: Write index.html
-        run: |
-          cat > pages/index.html <<'HTML'
-          <!doctype html>
-          <html><head><meta charset="utf-8"><title>vpsguard apt repository</title></head>
-          <body style="font-family:system-ui;max-width:720px;margin:2rem auto;padding:0 1rem;line-height:1.5">
-          <h1>vpsguard apt repository</h1>
-          <p>Install the agent on Debian or Ubuntu:</p>
-          <pre><code>curl -fsSL https://ceorkm.github.io/vpsguard/apt/vpsguard.asc | sudo tee /etc/apt/keyrings/vpsguard.asc &gt; /dev/null
-          echo "deb [signed-by=/etc/apt/keyrings/vpsguard.asc] https://ceorkm.github.io/vpsguard/apt stable main" | sudo tee /etc/apt/sources.list.d/vpsguard.list
-          sudo apt update
-          sudo apt install vpsguard
-          sudo vpsguard configure</code></pre>
-          <p>Source: <a href="https://github.com/ceorkm/vpsguard">github.com/ceorkm/vpsguard</a></p>
-          </body></html>
-          HTML
-
-      - name: Commit and push gh-pages
-        run: |
-          cd pages
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "no changes"
-          else
-            git commit -m "publish ${{ needs.release.outputs.version }}"
-            git push --force --set-upstream origin gh-pages
-          fi

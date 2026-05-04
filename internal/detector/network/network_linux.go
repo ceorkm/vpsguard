@@ -59,6 +59,7 @@ func run(ctx context.Context, out chan<- *event.Event, d *Detector) error {
 	alerted.knownBadConnection = map[string]time.Time{}
 	alerted.cloudMetadata = map[string]time.Time{}
 
+	tick(hist, sshThresh, smtpThresh, rdpThresh, d.KnownBadIPs, &alerted, out)
 	t := time.NewTicker(pollInterval)
 	defer t.Stop()
 

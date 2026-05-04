@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -82,6 +83,7 @@ func configureCmd(args []string) {
 
 	if *skipTest {
 		fmt.Println("Skipping test alert. Run `vpsguard test-alert` to verify Telegram delivery.")
+		restartInstalledService()
 		return
 	}
 
@@ -92,10 +94,23 @@ func configureCmd(args []string) {
 		os.Exit(1)
 	}
 	fmt.Println("✓ Test alert delivered. Open Telegram to confirm you received it.")
-	fmt.Println()
-	fmt.Println("Next: enable and start the service:")
-	fmt.Println("  sudo systemctl enable --now vpsguard")
+	restartInstalledService()
+	fmt.Println("Watch live events:")
 	fmt.Println("  sudo journalctl -u vpsguard -f")
+}
+
+func restartInstalledService() {
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return
+	}
+	if err := exec.Command("systemctl", "list-unit-files", "vpsguard.service").Run(); err != nil {
+		return
+	}
+	if err := exec.Command("systemctl", "restart", "vpsguard").Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "warning: config written, but systemd restart failed; run: sudo systemctl restart vpsguard")
+		return
+	}
+	fmt.Println("Restarted vpsguard so the new config is active.")
 }
 
 func sendConfigureTestAlert(token, chatID, server string) error {

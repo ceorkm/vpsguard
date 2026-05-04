@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"sync"
@@ -53,37 +52,24 @@ func NewTelegramSink(s *telegram.Sender, min event.Severity) *TelegramSink {
 func (t *TelegramSink) Name() string { return "telegram" }
 
 func (t *TelegramSink) Send(ctx context.Context, e *event.Event) error {
-	// Severity gate: a Telegram ping for every "info"-level heartbeat
-	// would be useless noise. Keep stdout for everything; Telegram for
-	// what actually matters.
-	if config.SeverityRank(e.Severity) < config.SeverityRank(t.MinSeverity) {
+	if e == nil {
 		return nil
 	}
-	// Always deliver agent.error regardless of MinSeverity — it's a
-	// "your monitoring is broken" signal the user must see.
-	if e.Type == event.TypeAgentError ||
-		config.SeverityRank(e.Severity) >= config.SeverityRank(t.MinSeverity) {
-		text := format.Format(e)
-		if text == "" {
-			return nil
-		}
-		if err := t.Sender.SendWithAck(ctx, text, alertID(e)); err != nil {
-			log.Printf("telegram sink: %v", err)
-			return err
-		}
+	// Severity gate: a Telegram ping for every "info"-level heartbeat
+	// would be useless noise. Keep stdout for everything; Telegram for
+	// what actually matters. agent.error bypasses this gate because
+	// "monitoring is broken" must always reach the user.
+	if e.Type != event.TypeAgentError &&
+		config.SeverityRank(e.Severity) < config.SeverityRank(t.MinSeverity) {
+		return nil
+	}
+	text := format.Format(e)
+	if text == "" {
+		return nil
+	}
+	if err := t.Sender.Send(ctx, text); err != nil {
+		log.Printf("telegram sink: %v", err)
+		return err
 	}
 	return nil
 }
-
-func alertID(e *event.Event) string {
-	if e == nil {
-		return ""
-	}
-	if e.Fields != nil {
-		if id, ok := e.Fields["incident_id"]; ok {
-			return fmt.Sprintf("%v", id)
-		}
-	}
-	return fmt.Sprintf("%s:%d", e.Type, e.Time.Unix())
-}
-

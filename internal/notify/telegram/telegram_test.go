@@ -46,30 +46,6 @@ func TestSend_Success(t *testing.T) {
 	}
 }
 
-func TestSendWithAck_AddsInlineButtons(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		var req sendRequest
-		_ = json.Unmarshal(body, &req)
-		if req.ReplyMarkup == nil {
-			t.Fatal("reply_markup missing")
-		}
-		if len(req.ReplyMarkup.InlineKeyboard) != 1 || len(req.ReplyMarkup.InlineKeyboard[0]) != 2 {
-			t.Fatalf("unexpected keyboard: %#v", req.ReplyMarkup)
-		}
-		if req.ReplyMarkup.InlineKeyboard[0][0].CallbackData != "ack:incident_123" {
-			t.Fatalf("callback data: %q", req.ReplyMarkup.InlineKeyboard[0][0].CallbackData)
-		}
-		_, _ = w.Write([]byte(`{"ok":true}`))
-	}))
-	defer srv.Close()
-
-	s := &Sender{BotToken: "TKN", ChatID: "987654321", APIBase: srv.URL}
-	if err := s.SendWithAck(context.Background(), "hello", "incident 123"); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestSend_PermanentBadToken(t *testing.T) {
 	var called int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -36,19 +36,9 @@ type Sender struct {
 }
 
 type sendRequest struct {
-	ChatID      string                `json:"chat_id"`
-	Text        string                `json:"text"`
-	ParseMode   string                `json:"parse_mode,omitempty"`
-	ReplyMarkup *InlineKeyboardMarkup `json:"reply_markup,omitempty"`
-}
-
-type InlineKeyboardMarkup struct {
-	InlineKeyboard [][]InlineKeyboardButton `json:"inline_keyboard"`
-}
-
-type InlineKeyboardButton struct {
-	Text         string `json:"text"`
-	CallbackData string `json:"callback_data,omitempty"`
+	ChatID    string `json:"chat_id"`
+	Text      string `json:"text"`
+	ParseMode string `json:"parse_mode,omitempty"`
 }
 
 type sendResponse struct {
@@ -63,30 +53,13 @@ type sendResponse struct {
 // Send delivers a MarkdownV2-formatted message. Retries on 5xx and 429
 // (respecting Retry-After). Returns nil on success.
 func (s *Sender) Send(ctx context.Context, text string) error {
-	return s.send(ctx, text, nil)
-}
-
-func (s *Sender) SendWithAck(ctx context.Context, text, alertID string) error {
-	alertID = strings.TrimSpace(alertID)
-	if alertID == "" {
-		return s.Send(ctx, text)
-	}
-	markup := &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{
-		{Text: "Acknowledge", CallbackData: "ack:" + compactCallback(alertID)},
-		{Text: "False positive", CallbackData: "fp:" + compactCallback(alertID)},
-	}}}
-	return s.send(ctx, text, markup)
-}
-
-func (s *Sender) send(ctx context.Context, text string, markup *InlineKeyboardMarkup) error {
 	if s.BotToken == "" || s.ChatID == "" {
 		return errors.New("telegram: bot_token and chat_id required")
 	}
 	body := sendRequest{
-		ChatID:      s.ChatID,
-		Text:        text,
-		ParseMode:   "MarkdownV2",
-		ReplyMarkup: markup,
+		ChatID:    s.ChatID,
+		Text:      text,
+		ParseMode: "MarkdownV2",
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -130,23 +103,6 @@ func (s *Sender) send(ctx context.Context, text string, markup *InlineKeyboardMa
 		}
 	}
 	return fmt.Errorf("telegram: send failed after %d attempts: %w", maxRetries, lastErr)
-}
-
-func compactCallback(s string) string {
-	s = strings.Map(func(r rune) rune {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-			return r
-		case r == '-', r == '_', r == ':', r == '.':
-			return r
-		default:
-			return '_'
-		}
-	}, s)
-	if len(s) > 56 {
-		return s[:56]
-	}
-	return s
 }
 
 type permanentError struct{ msg string }

@@ -11,8 +11,8 @@
 #   1. Detects arch (amd64 / arm64)
 #   2. Downloads or copies the binary into /usr/local/bin/vpsguard
 #   3. Drops a sample config to /etc/vpsguard/config.yml (only if none exists)
-#   4. Installs the systemd unit
-#   5. Tells you to edit the config, then run `vpsguard test-alert`
+#   4. Installs systemd, watchdog, and auditd rule files
+#   5. Runs interactive Telegram setup when a TTY is available
 #
 # Idempotent: safe to re-run.
 
@@ -25,8 +25,11 @@ BIN_DST="/usr/local/bin/vpsguard"
 CONF_DIR="/etc/vpsguard"
 CONF_DST="${CONF_DIR}/config.yml"
 STATE_DIR="/var/lib/vpsguard"
-UNIT_SRC=""           # set later — local checkout vs download
+    UNIT_SRC=""           # set later — local checkout vs download
+    UNIT_TMP=""
 UNIT_DST="/etc/systemd/system/vpsguard.service"
+WATCHDOG_DST="/etc/systemd/system/vpsguard-watchdog.service"
+AUDIT_RULE_DST="/etc/audit/rules.d/80-vpsguard.rules"
 
 # ---- helpers ----
 say() { printf '\033[1;32m=>\033[0m %s\n' "$*"; }
@@ -71,6 +74,8 @@ main() {
 
     local local_bin="${repo_root}/dist/vpsguard-linux-${arch}"
     local local_unit="${script_dir}/systemd/vpsguard.service"
+    local local_watchdog="${script_dir}/systemd/vpsguard-watchdog.service"
+    local local_audit_rules="${script_dir}/audit/80-vpsguard.rules"
     local local_config_example="${script_dir}/config.example.yml"
 
     if [[ -x "$local_bin" ]]; then
@@ -107,21 +112,58 @@ main() {
         warn "No sample config found — you'll need to create $CONF_DST manually"
     fi
 
-    # systemd unit.
+    # systemd units.
     if [[ -f "$local_unit" ]]; then
         UNIT_SRC="$local_unit"
     else
         warn "Local systemd unit not found, downloading..."
         local unit_url="https://raw.githubusercontent.com/${REPO}/main/packaging/systemd/vpsguard.service"
         UNIT_SRC="$(mktemp)"
+        UNIT_TMP="$UNIT_SRC"
         if ! curl -fsSL -o "$UNIT_SRC" "$unit_url"; then
             die "unit download failed: $unit_url"
         fi
     fi
     install -m 0644 "$UNIT_SRC" "$UNIT_DST"
-    systemctl daemon-reload
+    [[ -n "$UNIT_TMP" ]] && rm -f "$UNIT_TMP"
     say "systemd unit installed at $UNIT_DST"
 
+    if [[ -f "$local_watchdog" ]]; then
+        install -m 0644 "$local_watchdog" "$WATCHDOG_DST"
+        say "watchdog unit installed at $WATCHDOG_DST"
+    else
+        local watchdog_url="https://raw.githubusercontent.com/${REPO}/main/packaging/systemd/vpsguard-watchdog.service"
+        if curl -fsSL -o "$WATCHDOG_DST.tmp" "$watchdog_url"; then
+            install -m 0644 "$WATCHDOG_DST.tmp" "$WATCHDOG_DST"
+            rm -f "$WATCHDOG_DST.tmp"
+            say "watchdog unit installed at $WATCHDOG_DST"
+        else
+            warn "watchdog unit download failed; main service still installed"
+        fi
+    fi
+
+    if [[ -f "$local_audit_rules" ]]; then
+        install -d -m 0755 "$(dirname "$AUDIT_RULE_DST")"
+        install -m 0640 "$local_audit_rules" "$AUDIT_RULE_DST"
+        say "audit rules installed at $AUDIT_RULE_DST"
+    else
+        local audit_url="https://raw.githubusercontent.com/${REPO}/main/packaging/audit/80-vpsguard.rules"
+        if curl -fsSL -o "$AUDIT_RULE_DST.tmp" "$audit_url"; then
+            install -d -m 0755 "$(dirname "$AUDIT_RULE_DST")"
+            install -m 0640 "$AUDIT_RULE_DST.tmp" "$AUDIT_RULE_DST"
+            rm -f "$AUDIT_RULE_DST.tmp"
+            say "audit rules installed at $AUDIT_RULE_DST"
+        else
+            warn "audit rule download failed; audit detector can still read existing audit logs"
+        fi
+    fi
+
+    if [[ -t 0 && -t 1 ]] && grep -Eq "REPLACE_WITH_BOT_TOKEN|REPLACE_WITH_CHAT_ID" "$CONF_DST" 2>/dev/null; then
+        say "Launching Telegram setup..."
+        "$BIN_DST" configure --force || warn "setup did not complete; run sudo vpsguard configure later"
+    fi
+
+    systemctl daemon-reload
     say "Enabling and starting vpsguard service..."
     if systemctl enable --now vpsguard; then
         say "vpsguard service is running"
@@ -129,26 +171,25 @@ main() {
         warn "systemd start failed. Check: sudo journalctl -u vpsguard -n 100 --no-pager"
     fi
 
+    systemctl enable --now vpsguard-watchdog >/dev/null 2>&1 || warn "watchdog start failed"
+
     cat <<EOF
 
 vpsguard is installed and systemd has been asked to start it.
 
 Next steps:
 
-  1. Edit your config:
-       sudo \$EDITOR $CONF_DST
-     (set telegram.bot_token, telegram.chat_id, and optionally healthcheck_url)
+  1. Configure Telegram if you skipped setup:
+       sudo vpsguard configure
 
   2. Verify Telegram delivery:
        sudo vpsguard test-alert
 
-  3. Reload after config changes:
-       sudo systemctl restart vpsguard
-
-  4. Watch live events:
+  3. Watch live events:
        sudo journalctl -u vpsguard -f
 
-Uninstall: sudo rm $BIN_DST $UNIT_DST && sudo rm -rf $CONF_DIR $STATE_DIR
+Uninstall:
+  sudo vpsguard uninstall
 EOF
 }
 

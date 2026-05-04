@@ -65,6 +65,7 @@ func (d *Detector) Run(ctx context.Context, out chan<- *event.Event) error {
 		defer store.Close()
 	}
 	base := baseline(paths, store)
+	check(paths, base, store, out)
 	checkSSHD(out)
 	watcher, _ := fsnotify.NewWatcher()
 	if watcher != nil {

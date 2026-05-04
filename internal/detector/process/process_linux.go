@@ -42,6 +42,7 @@ func run(ctx context.Context, out chan<- *event.Event, d *Detector) error {
 	if sustain <= 0 {
 		sustain = 3 * time.Minute
 	}
+	scan(state, threshold, sustain, out)
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 	for {

@@ -1,40 +1,11 @@
 # Releasing vpsguard
 
-The release workflow runs on every `v*` tag. It builds the binaries, the
-`.deb`/`.rpm` packages, the cosign-signed checksums, and (re)publishes the
-APT repository on the `gh-pages` branch.
+The release workflow runs on every `v*` tag. It builds:
 
-## One-time setup
-
-These steps are needed once per repo for `apt install vpsguard` to work
-end-to-end. Skipping them still produces a working release (raw binaries,
-`.deb` / `.rpm` files, checksums) — the only thing that breaks is the
-self-hosted APT repo's GPG signature.
-
-### 1. Generate a GPG key for signing the APT Release file
-
-```bash
-gpg --full-generate-key                    # RSA 4096, "vpsguard signing key"
-gpg --armor --export-secret-keys KEY-ID > vpsguard-signing.asc
-```
-
-### 2. Add the private key as a GitHub Actions secret
-
-```bash
-gh secret set VPSGUARD_GPG_KEY < vpsguard-signing.asc --repo ceorkm/vpsguard
-```
-
-Then **delete the local file**:
-
-```bash
-shred -u vpsguard-signing.asc
-```
-
-### 3. Enable GitHub Pages on the `gh-pages` branch
-
-`Settings → Pages → Source: Deploy from a branch → gh-pages → /` (root).
-
-The first release tag will create the branch and populate it.
+- Linux binaries for amd64 and arm64
+- `.deb` and `.rpm` package files as GitHub Release assets
+- `checksums.txt`
+- a cosign bundle for the checksum file
 
 ## Cutting a release
 
@@ -43,11 +14,22 @@ git tag v0.3.0 -m "first public release"
 git push origin v0.3.0
 ```
 
-Wait ~3 min, then:
+Wait for the GitHub Actions release workflow to finish, then verify:
 
-- Releases page shows binaries, `.deb`, `.rpm`, checksums, signature.
-- `https://ceorkm.github.io/vpsguard/` shows the APT install snippet.
-- `apt-get update && apt-get install vpsguard` works on Debian/Ubuntu.
+- the GitHub Releases page has `vpsguard-linux-amd64`
+- the GitHub Releases page has `vpsguard-linux-arm64`
+- the GitHub Releases page has `.deb` and `.rpm` files
+- `checksums.txt` includes every uploaded binary/package
+- `checksums.txt.bundle` exists
+- the raw installer can download and install the release on a clean Linux VPS
+
+## Public install command
+
+After the first release exists, the supported public install path is:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ceorkm/vpsguard/main/packaging/install.sh | sudo bash
+```
 
 ## Rolling back a release
 
